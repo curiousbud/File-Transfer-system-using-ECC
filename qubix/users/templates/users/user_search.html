@@ -1,0 +1,87 @@
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div class="content-section">
+        <form method="GET" class="form-group">
+            <div class="input-group">
+                <input class="form-control" type="text" name="q" value="{{ query }}" placeholder="Search for users to add as friends...">
+                <div class="input-group-append">
+                    <button class="btn btn-primary" type="submit">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {% if query %}
+        <div class="content-section">
+            <h3>Search Results for "{{ query }}"</h3>
+            {% if users %}
+                {% for user_data in users %}
+                    <div class="media border-bottom pb-3 mb-3">
+                        <img class="rounded-circle mr-3" src="{{ user_data.user.profile.image.url }}" width="64" height="64">
+                        <div class="media-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h5 class="mt-0">
+                                        <a class="text-decoration-none" href="{% url 'user-posts' user_data.user.username %}">
+                                            {{ user_data.user.username }}
+                                        </a>
+                                    </h5>
+                                    {% if user_data.user.first_name or user_data.user.last_name %}
+                                        <p class="text-muted mb-1">{{ user_data.user.first_name }} {{ user_data.user.last_name }}</p>
+                                    {% endif %}
+                                    <small class="text-muted">{{ user_data.user.email }}</small>
+                                </div>
+                                <div>
+                                    {% if user_data.friendship_status == 'none' %}
+                                        <form method="POST" action="{% url 'send-friend-request' user_data.user.id %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-user-plus"></i> Add Friend
+                                            </button>
+                                        </form>
+                                    {% elif user_data.friendship_status == 'friends' %}
+                                        <span class="badge badge-success">
+                                            <i class="fas fa-check"></i> Friends
+                                        </span>
+                                    {% elif user_data.friendship_status == 'request_sent' %}
+                                        <span class="badge badge-warning">
+                                            <i class="fas fa-clock"></i> Request Sent
+                                        </span>
+                                    {% elif user_data.friendship_status == 'request_received' %}
+                                        <a href="{% url 'friend-requests' %}" class="btn btn-info btn-sm">
+                                            <i class="fas fa-envelope"></i> Respond to Request
+                                        </a>
+                                    {% elif user_data.friendship_status == 'rejected' %}
+                                        <span class="badge badge-secondary">
+                                            <i class="fas fa-times"></i> Previously Rejected
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-muted">No users found matching "{{ query }}"</p>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <div class="content-section">
+        <div class="row">
+            <div class="col-md-6">
+                <a href="{% url 'friend-requests' %}" class="btn btn-info btn-block">
+                    <i class="fas fa-envelope"></i> View Friend Requests
+                </a>
+            </div>
+            <div class="col-md-6">
+                <a href="{% url 'friends-list' %}" class="btn btn-success btn-block">
+                    <i class="fas fa-users"></i> View Friends List
+                </a>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

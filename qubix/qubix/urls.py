@@ -59,6 +59,15 @@ urlpatterns = [
     path('register/', user_views.register, name='register'),
     path('profile/', user_views.profile, name='profile'),
     path('logout/', user_views.logout_view, name='logout'),
+    
+    # Friendship URLs
+    path('search/', user_views.user_search, name='user-search'),
+    path('send-friend-request/<int:user_id>/', user_views.send_friend_request, name='send-friend-request'),
+    path('friend-requests/', user_views.friend_requests, name='friend-requests'),
+    path('manage-request/<int:friendship_id>/<str:action>/', user_views.manage_friend_request, name='manage-friend-request'),
+    path('friends/', user_views.friends_list, name='friends-list'),
+    path('remove-friend/<int:user_id>/', user_views.remove_friend, name='remove-friend'),
+    
     path('', include('blog.urls')),
 ]
 

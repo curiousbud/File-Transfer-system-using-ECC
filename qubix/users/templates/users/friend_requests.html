@@ -1,0 +1,56 @@
+{% extends "blog/base.html" %}
+{% block content %}
+    <div class="content-section">
+        <h2>Friend Requests</h2>
+        
+        {% if pending_requests %}
+            {% for friendship in pending_requests %}
+                <div class="media border-bottom pb-3 mb-3">
+                    <img class="rounded-circle mr-3" src="{{ friendship.requester.profile.image.url }}" width="64" height="64">
+                    <div class="media-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mt-0">
+                                    <a class="text-decoration-none" href="{% url 'user-posts' friendship.requester.username %}">
+                                        {{ friendship.requester.username }}
+                                    </a>
+                                </h5>
+                                {% if friendship.requester.first_name or friendship.requester.last_name %}
+                                    <p class="text-muted mb-1">{{ friendship.requester.first_name }} {{ friendship.requester.last_name }}</p>
+                                {% endif %}
+                                <small class="text-muted">{{ friendship.created_at|timesince }} ago</small>
+                            </div>
+                            <div>
+                                <form method="POST" action="{% url 'manage-friend-request' friendship.id 'accept' %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success btn-sm">
+                                        <i class="fas fa-check"></i> Accept
+                                    </button>
+                                </form>
+                                <form method="POST" action="{% url 'manage-friend-request' friendship.id 'reject' %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger btn-sm">
+                                        <i class="fas fa-times"></i> Reject
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> You have no pending friend requests.
+            </div>
+        {% endif %}
+        
+        <div class="mt-3">
+            <a href="{% url 'user-search' %}" class="btn btn-primary">
+                <i class="fas fa-search"></i> Search for Friends
+            </a>
+            <a href="{% url 'friends-list' %}" class="btn btn-success">
+                <i class="fas fa-users"></i> View Friends List
+            </a>
+        </div>
+    </div>
+{% endblock content %}

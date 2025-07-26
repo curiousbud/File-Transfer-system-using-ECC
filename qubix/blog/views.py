@@ -11,6 +11,7 @@ from django.views.generic import (
     DeleteView
 )
 from .models import Post
+from users.models import Friendship
 import operator
 from django.urls import reverse_lazy
 from django.contrib.staticfiles.views import serve
@@ -22,21 +23,39 @@ from django.db.models import Q
 
 @login_required
 def home(request):
+    # Get all posts that the current user can access
+    all_posts = Post.objects.all()
+    accessible_posts = []
+    
+    for post in all_posts:
+        if post.can_user_access(request.user):
+            accessible_posts.append(post)
+    
     context = {
-        'posts': Post.objects.all()
+        'posts': accessible_posts
     }
     return render(request, 'blog/home.html', context)
 
 @login_required
 def search(request):
-    template='blog/home.html'
-
-    query=request.GET.get('q')
-
-    result=Post.objects.filter(Q(title__icontains=query) | Q(author__username__icontains=query) | Q(content__icontains=query))
-    paginate_by=2
-    context={ 'posts':result }
-    return render(request,template,context)
+    template = 'blog/home.html'
+    query = request.GET.get('q')
+    
+    # Search in posts that user can access
+    all_results = Post.objects.filter(
+        Q(title__icontains=query) | 
+        Q(author__username__icontains=query) | 
+        Q(content__icontains=query)
+    )
+    
+    # Filter results based on visibility permissions
+    accessible_results = []
+    for post in all_results:
+        if post.can_user_access(request.user):
+            accessible_results.append(post)
+    
+    context = {'posts': accessible_results}
+    return render(request, template, context)
    
 
 
@@ -51,6 +70,17 @@ class PostListView(LoginRequiredMixin, ListView):
     ordering = ['-date_posted']
     paginate_by = 2
 
+    def get_queryset(self):
+        # Get posts that the current user can access
+        all_posts = Post.objects.all().order_by('-date_posted')
+        accessible_posts = []
+        
+        for post in all_posts:
+            if post.can_user_access(self.request.user):
+                accessible_posts.append(post.pk)
+        
+        return Post.objects.filter(pk__in=accessible_posts).order_by('-date_posted')
+
 
 class UserPostListView(LoginRequiredMixin, ListView):
     model = Post
@@ -60,18 +90,30 @@ class UserPostListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         user = get_object_or_404(User, username=self.kwargs.get('username'))
-        return Post.objects.filter(author=user).order_by('-date_posted')
+        user_posts = Post.objects.filter(author=user).order_by('-date_posted')
+        
+        # Filter posts based on what current user can access
+        accessible_posts = []
+        for post in user_posts:
+            if post.can_user_access(self.request.user):
+                accessible_posts.append(post.pk)
+        
+        return Post.objects.filter(pk__in=accessible_posts).order_by('-date_posted')
 
 
-class PostDetailView(LoginRequiredMixin, DetailView):
+class PostDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     model = Post
     template_name = 'blog/post_detail.html'
+
+    def test_func(self):
+        post = self.get_object()
+        return post.can_user_access(self.request.user)
 
 
 class PostCreateView(LoginRequiredMixin, CreateView):
     model = Post
     template_name = 'blog/post_form.html'
-    fields = ['title', 'content', 'file']
+    fields = ['title', 'content', 'file', 'visibility']
 
     def form_valid(self, form):
         form.instance.author = self.request.user
@@ -81,7 +123,7 @@ class PostCreateView(LoginRequiredMixin, CreateView):
 class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Post
     template_name = 'blog/post_form.html'
-    fields = ['title', 'content', 'file']
+    fields = ['title', 'content', 'file', 'visibility']
 
     def form_valid(self, form):
         form.instance.author = self.request.user
@@ -113,10 +155,14 @@ def about(request):
 @login_required
 def secure_file_download(request, pk):
     """
-    Secure file download view that requires authentication
+    Secure file download view that requires authentication and friend access
     """
     try:
         post = get_object_or_404(Post, pk=pk)
+        
+        # Check if user can access this post (friends only restriction)
+        if not post.can_user_access(request.user):
+            raise Http404("You don't have permission to access this file")
         
         # Check if the post has a file
         if not post.file:

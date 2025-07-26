@@ -43,6 +43,25 @@
                     {% if user.is_authenticated %}
                     <a href="{% url 'user-posts' user %}" class="btn text-white m-2"><i class="fas fa-user-shield"></i> My Post</a>
                     <a href="{% url 'post-create' %} " class="btn text-white m-2"><i class="fas fa-user-edit"></i> New Post</a>
+                    
+                    <!-- Friends dropdown -->
+                    <div class="btn-group m-2" role="group">
+                        <button id="friendsDropdown" type="button" class="btn text-white dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-users"></i> Friends
+                        </button>
+                        <div class="dropdown-menu" aria-labelledby="friendsDropdown">
+                            <a class="dropdown-item" href="{% url 'user-search' %}">
+                                <i class="fas fa-search"></i> Search Users
+                            </a>
+                            <a class="dropdown-item" href="{% url 'friend-requests' %}">
+                                <i class="fas fa-envelope"></i> Friend Requests
+                            </a>
+                            <a class="dropdown-item" href="{% url 'friends-list' %}">
+                                <i class="fas fa-users"></i> My Friends
+                            </a>
+                        </div>
+                    </div>
+                    
                     <a href="{% url 'profile' %} " class="btn text-white m-2"><i class="fas fa-user"></i> {{ user.username }}</a>
                     <a href="{% url 'logout' %} " class="btn text-white m-2"><i class="fas fa-sign-out-alt"></i> Log Out</a>
                     
