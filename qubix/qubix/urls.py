@@ -60,6 +60,12 @@ urlpatterns = [
     path('profile/', user_views.profile, name='profile'),
     path('logout/', user_views.logout_view, name='logout'),
     
+    # ECC Key Management URLs
+    path('keys/', user_views.key_management, name='key-management'),
+    path('keys/generate/', user_views.generate_keys, name='generate-keys'),
+    path('keys/rotate/', user_views.rotate_keys, name='rotate-keys'),
+    path('api/key-info/', user_views.key_info_api, name='key-info-api'),
+    
     # Friendship URLs
     path('search/', user_views.user_search, name='user-search'),
     path('send-friend-request/<int:user_id>/', user_views.send_friend_request, name='send-friend-request'),
