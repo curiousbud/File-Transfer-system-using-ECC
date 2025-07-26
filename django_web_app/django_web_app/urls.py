@@ -15,10 +15,43 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve
+from django.http import Http404
 from users import views as user_views
+import os
+
+
+def secure_media_serve(request, path):
+    """
+    Serve media files securely - allow images for display but only to authenticated users
+    """
+    # Check authentication for all media files except default.jpg
+    if path != 'default.jpg' and not request.user.is_authenticated:
+        raise Http404("Authentication required")
+    
+    # Get file extension
+    _, ext = os.path.splitext(path.lower())
+    
+    # Allow these image extensions for display
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+    allowed_files = ['default.jpg']
+    
+    # Check if it's an allowed image, default file, or profile picture
+    if (ext in allowed_extensions or 
+        path in allowed_files or 
+        path.startswith('profile_pics/') or
+        (path.startswith('Files/') and ext in allowed_extensions)):
+        
+        # For images, serve them normally for display
+        document_root = settings.MEDIA_ROOT
+        return serve(request, path, document_root=document_root)
+    else:
+        # For other files (like uploaded documents), raise 404
+        # They should be accessed through the secure download view
+        raise Http404("File access not allowed")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,8 +62,9 @@ urlpatterns = [
     path('', include('blog.urls')),
 ]
 
-# Serve media files securely - only for development
-# In production, use web server (nginx/apache) to serve media files with proper authentication
+# Serve media files securely - allow images but restrict other file types
 if settings.DEBUG:
-    # Don't serve media files directly - force through our secure download view
-    pass
+    # Use our custom secure media serve function
+    urlpatterns += [
+        re_path(r'^media/(?P<path>.*)$', secure_media_serve, name='media'),
+    ]
