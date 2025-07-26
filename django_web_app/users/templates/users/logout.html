@@ -1,10 +1,19 @@
 {% extends "blog/base.html" %}
 {% block content %}
-   <h2>You have been logged out</h2>
-    <div class="border-top pt-3">
-        <small class="text-muted">
-            <a href="{% url 'login' %}">Log In Again</a>
-        </small>
-    </div>
+   <div class="content-section">
+       <h2>You have been logged out</h2>
+       <p>Thank you for using our file transfer system!</p>
+       <div class="border-top pt-3">
+           <small class="text-muted">
+               <a href="{% url 'login' %}">Log In Again</a>
+           </small>
+       </div>
+   </div>
    
+   <script>
+   // Auto redirect to login page after 3 seconds
+   setTimeout(function() {
+       window.location.href = "{% url 'login' %}";
+   }, 3000);
+   </script>
 {% endblock content %}
