@@ -29,6 +29,8 @@ urlpatterns = [
     path('', include('blog.urls')),
 ]
 
-
+# Serve media files securely - only for development
+# In production, use web server (nginx/apache) to serve media files with proper authentication
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Don't serve media files directly - force through our secure download view
+    pass
