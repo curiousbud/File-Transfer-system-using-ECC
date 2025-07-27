@@ -1,0 +1,22 @@
+# Django and Web Framework Dependencies
+Django==5.2.4
+asgiref==3.9.1
+sqlparse==0.5.3
+tzdata==2025.2
+
+# Forms and UI Dependencies
+django-crispy-forms==2.4
+crispy-bootstrap4==2025.6
+
+# Image Processing
+pillow==11.3.0
+
+# Cryptography Libraries for ECC Implementation
+cryptography==45.0.5
+pycryptodome==3.23.0
+ecdsa==0.19.1
+
+# Cryptography Dependencies
+cffi==1.17.1
+pycparser==2.22
+six==1.17.0
