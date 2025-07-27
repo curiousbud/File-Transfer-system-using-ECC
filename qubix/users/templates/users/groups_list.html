@@ -1,0 +1,128 @@
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Qubix - My Groups{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-users mr-2"></i>
+                    My Groups
+                </h2>
+                <a href="{% url 'create-group' %}" class="btn btn-primary">
+                    <i class="fas fa-plus mr-1"></i>
+                    Create Group
+                </a>
+            </div>
+
+            <!-- Owned Groups -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-crown mr-2 text-warning"></i>
+                        Groups I Own ({{ owned_groups.count }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if owned_groups %}
+                        <div class="row">
+                            {% for group in owned_groups %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="fas fa-users mr-1"></i>
+                                                {{ group.name }}
+                                            </h6>
+                                            {% if group.description %}
+                                                <p class="card-text text-muted small">{{ group.description|truncatechars:80 }}</p>
+                                            {% endif %}
+                                            <p class="card-text">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-user-check mr-1"></i>
+                                                    {{ group.get_members_with_keys.count }} member{{ group.get_members_with_keys.count|pluralize }} with keys
+                                                </small>
+                                            </p>
+                                            <a href="{% url 'group-detail' group.id %}" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-eye mr-1"></i>
+                                                View Details
+                                            </a>
+                                        </div>
+                                        <div class="card-footer text-muted">
+                                            <small>Created {{ group.created_at|date:"M d, Y" }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-users-slash fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">You haven't created any groups yet.</p>
+                            <a href="{% url 'create-group' %}" class="btn btn-primary">
+                                <i class="fas fa-plus mr-1"></i>
+                                Create Your First Group
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Member Groups -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-friends mr-2 text-success"></i>
+                        Groups I'm Member Of ({{ member_groups.count }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if member_groups %}
+                        <div class="row">
+                            {% for group in member_groups %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">
+                                                <i class="fas fa-users mr-1"></i>
+                                                {{ group.name }}
+                                            </h6>
+                                            {% if group.description %}
+                                                <p class="card-text text-muted small">{{ group.description|truncatechars:80 }}</p>
+                                            {% endif %}
+                                            <p class="card-text">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-user-check mr-1"></i>
+                                                    {{ group.get_members_with_keys.count }} member{{ group.get_members_with_keys.count|pluralize }} with keys<br>
+                                                    <i class="fas fa-crown mr-1"></i>
+                                                    Owner: {{ group.owner.username }}
+                                                </small>
+                                            </p>
+                                            <a href="{% url 'group-detail' group.id %}" class="btn btn-outline-success btn-sm">
+                                                <i class="fas fa-eye mr-1"></i>
+                                                View Details
+                                            </a>
+                                        </div>
+                                        <div class="card-footer text-muted">
+                                            <small>Joined {{ group.created_at|date:"M d, Y" }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">You're not a member of any groups yet.</p>
+                            <p class="text-muted">Ask friends to add you to their groups for easier file sharing.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

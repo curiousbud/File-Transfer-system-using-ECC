@@ -1,20 +1,374 @@
 {% extends "blog/base.html" %}
 {% load crispy_forms_tags %}
+
+{% block title %}Qubix - {% if form.instance.pk %}Edit{% else %}Create{% endif %} Post{% endblock title %}
+
 {% block content %}
-    <div class="content-section pt-2 mt-3 shadow-lg"  >
-          <form action="" method="POST" enctype="multipart/form-data">
-              {% csrf_token %}
-              <fieldset class="form-group">
-                    <legend class="border-bottom mb-4">
-                        Post
-                    </legend>
-                    {{ form|crispy }}
-              </fieldset>
-              <div class="form-group">
-                  
-                  <button class="btn btn-outline-primary" type="submit"><i class="fas fa-upload"></i> Upload</button>
-              </div>
-          </form>
-         
-      </div>
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-{% if form.instance.pk %}edit{% else %}plus{% endif %} mr-2"></i>
+                        {% if form.instance.pk %}Edit Post{% else %}Create New Post{% endif %}
+                    </h3>
+                    <p class="mb-0 mt-2 text-light">
+                        Share content and files with your network
+                    </p>
+                </div>
+                
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data" id="postForm">
+                        {% csrf_token %}
+                        
+                        <!-- Basic Post Fields -->
+                        <div class="form-group">
+                            <label for="{{ form.title.id_for_label }}" class="form-label">
+                                <strong>Title</strong>
+                                <span class="text-danger">*</span>
+                            </label>
+                            {{ form.title }}
+                            {% if form.title.errors %}
+                                <div class="text-danger">{{ form.title.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="{{ form.content.id_for_label }}" class="form-label">
+                                <strong>Content</strong>
+                                <span class="text-danger">*</span>
+                            </label>
+                            {{ form.content }}
+                            {% if form.content.errors %}
+                                <div class="text-danger">{{ form.content.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="{{ form.file.id_for_label }}" class="form-label">
+                                <strong>Attach File</strong>
+                                <span class="text-muted">(Optional)</span>
+                            </label>
+                            {{ form.file }}
+                            {% if form.file.errors %}
+                                <div class="text-danger">{{ form.file.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Attach images, documents, or other files to share with your post
+                            </small>
+                        </div>
+
+                        <!-- Visibility Setting -->
+                        <div class="form-group">
+                            <label for="{{ form.visibility.id_for_label }}" class="form-label">
+                                <strong>Visibility</strong>
+                            </label>
+                            {{ form.visibility }}
+                            {% if form.visibility.errors %}
+                                <div class="text-danger">{{ form.visibility.errors }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Choose who can see this post
+                            </small>
+                        </div>
+
+                        <!-- Advanced Sharing Options -->
+                        <div class="form-group" id="advancedSharing">
+                            <label class="form-label">
+                                <strong>Additional Sharing</strong>
+                                <span class="text-muted">(Optional - Beyond visibility setting)</span>
+                            </label>
+                            
+                            <!-- Selection Mode Tabs -->
+                            <ul class="nav nav-tabs mb-3" id="sharingTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link active" id="friends-tab" data-toggle="tab" href="#friends-panel" role="tab">
+                                        <i class="fas fa-user-friends mr-1"></i>
+                                        Specific Friends
+                                    </a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="groups-tab" data-toggle="tab" href="#groups-panel" role="tab">
+                                        <i class="fas fa-users mr-1"></i>
+                                        Groups
+                                    </a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="search-tab" data-toggle="tab" href="#search-panel" role="tab">
+                                        <i class="fas fa-search mr-1"></i>
+                                        Search Users
+                                    </a>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content" id="sharingTabContent">
+                                <!-- Friends Tab -->
+                                <div class="tab-pane fade show active" id="friends-panel" role="tabpanel">
+                                    {% if friends %}
+                                        <div class="sharing-selection-area border rounded p-3" style="max-height: 250px; overflow-y: auto;">
+                                            <div class="mb-2">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllFriends()">
+                                                    Select All
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ml-1" onclick="clearAllFriends()">
+                                                    Clear All
+                                                </button>
+                                                <span class="ml-3 text-muted">
+                                                    <span id="friendsSelectedCount">0</span> of {{ friends|length }} selected
+                                                </span>
+                                            </div>
+                                            <div class="row">
+                                                {% for friend in friends %}
+                                                    <div class="col-md-6 mb-2">
+                                                        <div class="custom-control custom-checkbox">
+                                                            <input type="checkbox" 
+                                                                   class="custom-control-input friend-checkbox" 
+                                                                   id="friend_{{ friend.id }}" 
+                                                                   name="share_with_friends" 
+                                                                   value="{{ friend.id }}">
+                                                            <label class="custom-control-label" for="friend_{{ friend.id }}">
+                                                                <div class="d-flex align-items-center">
+                                                                    <div class="user-avatar mr-2">
+                                                                        {% if friend.profile.image %}
+                                                                            <img src="{{ friend.profile.image.url }}" alt="Avatar" class="rounded-circle" width="20" height="20">
+                                                                        {% else %}
+                                                                            <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center" style="width: 20px; height: 20px;">
+                                                                                <span class="text-white text-xs">{{ friend.username|first|upper }}</span>
+                                                                            </div>
+                                                                        {% endif %}
+                                                                    </div>
+                                                                    <span class="font-weight-medium">{{ friend.username }}</span>
+                                                                </div>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle mr-2"></i>
+                                            No friends available for specific sharing.
+                                            <a href="{% url 'user-search' %}" class="alert-link">Find friends</a>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Groups Tab -->
+                                <div class="tab-pane fade" id="groups-panel" role="tabpanel">
+                                    {% if user_groups %}
+                                        <div class="sharing-selection-area border rounded p-3" style="max-height: 250px; overflow-y: auto;">
+                                            {% for group in user_groups %}
+                                                <div class="card mb-2">
+                                                    <div class="card-body p-2">
+                                                        <div class="custom-control custom-checkbox">
+                                                            <input type="checkbox" 
+                                                                   class="custom-control-input group-checkbox" 
+                                                                   id="group_{{ group.id }}" 
+                                                                   name="share_with_groups" 
+                                                                   value="{{ group.id }}">
+                                                            <label class="custom-control-label w-100" for="group_{{ group.id }}">
+                                                                <div class="d-flex justify-content-between align-items-center">
+                                                                    <div>
+                                                                        <h6 class="mb-0">{{ group.name }}</h6>
+                                                                        <small class="text-muted">
+                                                                            {{ group.get_active_members.count }} member{{ group.get_active_members.count|pluralize }}
+                                                                        </small>
+                                                                    </div>
+                                                                    <span class="badge badge-secondary">
+                                                                        {% if group.owner == user %}Owner{% else %}Member{% endif %}
+                                                                    </span>
+                                                                </div>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle mr-2"></i>
+                                            No groups available.
+                                            <a href="{% url 'create-group' %}" class="alert-link">Create a group</a>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Search Users Tab -->
+                                <div class="tab-pane fade" id="search-panel" role="tabpanel">
+                                    <div class="mb-3">
+                                        <div class="input-group">
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   id="userSearchInput" 
+                                                   placeholder="Search users by username...">
+                                            <div class="input-group-append">
+                                                <button class="btn btn-outline-secondary" type="button" onclick="searchUsers()">
+                                                    <i class="fas fa-search"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="searchResults" class="border rounded p-3" style="min-height: 150px; max-height: 250px; overflow-y: auto;">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-search fa-2x mb-2"></i>
+                                            <p>Search for users to share with</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <small class="form-text text-muted">
+                                Additional specific sharing beyond the visibility setting above
+                            </small>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="form-group text-center">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-{% if form.instance.pk %}save{% else %}upload{% endif %} mr-2"></i>
+                                {% if form.instance.pk %}Update Post{% else %}Create Post{% endif %}
+                            </button>
+                            <a href="{% url 'blog-home' %}" class="btn btn-secondary btn-lg ml-2">
+                                <i class="fas fa-times mr-2"></i>
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Helper functions for select all/clear all
+function selectAllFriends() {
+    const checkboxes = document.querySelectorAll('.friend-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateFriendsCount();
+}
+
+function clearAllFriends() {
+    const checkboxes = document.querySelectorAll('.friend-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateFriendsCount();
+}
+
+function updateFriendsCount() {
+    const selectedCount = document.querySelectorAll('.friend-checkbox:checked').length;
+    document.getElementById('friendsSelectedCount').textContent = selectedCount;
+}
+
+// User search functionality
+function searchUsers() {
+    const searchTerm = document.getElementById('userSearchInput').value.trim();
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (searchTerm.length < 2) {
+        resultsContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-search fa-2x mb-2"></i>
+                <p>Please enter at least 2 characters to search</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Show loading
+    resultsContainer.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Searching...</span>
+            </div>
+            <p class="mt-2">Searching for users...</p>
+        </div>
+    `;
+    
+    // Make AJAX request to search for users
+    fetch('/api/search-users/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ search_term: searchTerm })
+    })
+    .then(response => response.json())
+    .then(data => {
+        displaySearchResults(data.users);
+    })
+    .catch(error => {
+        console.error('Search error:', error);
+        resultsContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                Error searching for users. Please try again.
+            </div>
+        `;
+    });
+}
+
+function displaySearchResults(users) {
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (users.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-user-slash fa-2x mb-2"></i>
+                <p>No users found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let resultsHTML = '';
+    users.forEach(user => {
+        resultsHTML += `
+            <div class="mb-2">
+                <div class="custom-control custom-checkbox">
+                    <input type="checkbox" 
+                           class="custom-control-input" 
+                           id="searchuser_${user.id}" 
+                           name="share_with_search_users" 
+                           value="${user.id}">
+                    <label class="custom-control-label" for="searchuser_${user.id}">
+                        <i class="fas fa-user mr-1"></i>
+                        ${user.username}
+                        ${user.full_name ? `<small class="text-muted">(${user.full_name})</small>` : ''}
+                    </label>
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = resultsHTML;
+}
+
+// Update counts when checkboxes change
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('friend-checkbox')) {
+        updateFriendsCount();
+    }
+});
+
+// Search on Enter key
+document.addEventListener('keypress', function(e) {
+    if (e.target.id === 'userSearchInput' && e.key === 'Enter') {
+        e.preventDefault();
+        searchUsers();
+    }
+});
+</script>
+
+<style>
+.text-xs {
+    font-size: 0.75rem;
+}
+</style>
 {% endblock content %}

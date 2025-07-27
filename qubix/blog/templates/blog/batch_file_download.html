@@ -1,0 +1,349 @@
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Qubix - Batch File Download{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-download mr-2"></i>
+                        Batch File Download
+                    </h3>
+                    <p class="mb-0 mt-2 text-light">
+                        Download and decrypt multiple files as a ZIP archive
+                    </p>
+                </div>
+                
+                <div class="card-body">
+                    {% if received_files %}
+                        <!-- Batch Download Information -->
+                        <div class="alert alert-info" role="alert">
+                            <h5 class="alert-heading">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                Batch Download Information
+                            </h5>
+                            <ul class="mb-0">
+                                <li><strong>Maximum files per batch:</strong> {{ max_batch_size }}</li>
+                                <li><strong>Output format:</strong> ZIP archive with decrypted files</li>
+                                <li><strong>Processing:</strong> Concurrent decryption for optimal speed</li>
+                                <li><strong>Security:</strong> Files are decrypted in memory only</li>
+                            </ul>
+                        </div>
+
+                        <!-- Download Form -->
+                        <form method="post" id="batchDownloadForm">
+                            {% csrf_token %}
+                            
+                            <!-- File Selection -->
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <strong>Select Files to Download</strong>
+                                </label>
+                                <div class="row">
+                                    <div class="col-12 mb-3">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="selectAllBtn">
+                                            <i class="fas fa-check-square mr-1"></i>
+                                            Select All
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm ml-2" id="clearAllBtn">
+                                            <i class="fas fa-square mr-1"></i>
+                                            Clear All
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="thead-light">
+                                            <tr>
+                                                <th width="50"></th>
+                                                <th>File Name</th>
+                                                <th>Shared By</th>
+                                                <th>Size</th>
+                                                <th>Algorithm</th>
+                                                <th>Shared Date</th>
+                                                <th>Access Count</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for file_access in received_files %}
+                                                <tr>
+                                                    <td>
+                                                        <div class="custom-control custom-checkbox">
+                                                            <input type="checkbox" 
+                                                                   class="custom-control-input file-checkbox" 
+                                                                   id="file_{{ file_access.id }}" 
+                                                                   name="file_access_ids" 
+                                                                   value="{{ file_access.id }}">
+                                                            <label class="custom-control-label" for="file_{{ file_access.id }}"></label>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <i class="fas fa-file mr-2 text-primary"></i>
+                                                        {{ file_access.file.original_filename }}
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge badge-info">{{ file_access.file.uploaded_by.username }}</span>
+                                                    </td>
+                                                    <td>{{ file_access.file.get_file_size_display }}</td>
+                                                    <td>
+                                                        <span class="badge badge-secondary">{{ file_access.file.encryption_algorithm }}</span>
+                                                    </td>
+                                                    <td>{{ file_access.access_granted_at|date:"M d, Y" }}</td>
+                                                    <td>
+                                                        <span class="badge badge-light">{{ file_access.access_count }}</span>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <small class="form-text text-muted">
+                                    Select up to {{ max_batch_size }} files for batch download
+                                </small>
+                            </div>
+
+                            <!-- Selection Summary -->
+                            <div id="selectionSummary" class="mb-3" style="display: none;">
+                                <div class="alert alert-primary">
+                                    <strong>Selection Summary:</strong>
+                                    <span id="selectedCount">0</span> files selected
+                                    <span id="totalSize"></span>
+                                </div>
+                            </div>
+
+                            <!-- Key Password -->
+                            <div class="form-group">
+                                <label for="key_password" class="form-label">
+                                    <strong>Your Key Password</strong>
+                                </label>
+                                <input type="password" 
+                                       class="form-control" 
+                                       id="key_password" 
+                                       name="key_password" 
+                                       required 
+                                       placeholder="Enter your ECC key password">
+                                <small class="form-text text-muted">
+                                    Required to decrypt your private key for file decryption
+                                </small>
+                            </div>
+
+                            <!-- Progress Bar (initially hidden) -->
+                            <div id="downloadProgress" class="mb-3" style="display: none;">
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                         role="progressbar" 
+                                         style="width: 0%">
+                                        <span id="progressText">Preparing batch download...</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Submit Buttons -->
+                            <div class="form-group">
+                                <button type="submit" 
+                                        class="btn btn-success btn-lg" 
+                                        id="downloadBtn" 
+                                        disabled>
+                                    <i class="fas fa-download mr-2"></i>
+                                    Download Selected Files
+                                </button>
+                                <a href="{% url 'secure-files-list' %}" class="btn btn-secondary btn-lg ml-2">
+                                    <i class="fas fa-arrow-left mr-2"></i>
+                                    Back to Files
+                                </a>
+                            </div>
+                        </form>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-inbox text-muted" style="font-size: 4rem;"></i>
+                            <h4 class="mt-3 text-muted">No Files Available</h4>
+                            <p class="text-muted">
+                                You don't have any files shared with you for batch download.
+                            </p>
+                            <a href="{% url 'blog-home' %}" class="btn btn-primary">
+                                <i class="fas fa-home mr-2"></i>
+                                Go to Home
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Batch Download Tips -->
+            {% if received_files %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-lightbulb mr-2"></i>
+                        Batch Download Tips
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><strong>Performance:</strong></h6>
+                            <ul>
+                                <li>Files are processed concurrently for speed</li>
+                                <li>Large batches may take longer to process</li>
+                                <li>Download will start automatically when ready</li>
+                                <li>Keep browser window open during processing</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><strong>Security:</strong></h6>
+                            <ul>
+                                <li>Files are decrypted in memory only</li>
+                                <li>ZIP archive is created temporarily</li>
+                                <li>All access is logged for security</li>
+                                <li>Original file names are preserved</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const fileCheckboxes = document.querySelectorAll('.file-checkbox');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const selectionSummary = document.getElementById('selectionSummary');
+    const selectedCount = document.getElementById('selectedCount');
+    const totalSize = document.getElementById('totalSize');
+    const downloadProgress = document.getElementById('downloadProgress');
+    const progressText = document.getElementById('progressText');
+    const form = document.getElementById('batchDownloadForm');
+    
+    const MAX_BATCH_SIZE = parseInt('{{ max_batch_size }}');
+    
+    // Select all files
+    selectAllBtn.addEventListener('click', function() {
+        fileCheckboxes.forEach(checkbox => {
+            checkbox.checked = true;
+        });
+        updateSelection();
+    });
+    
+    // Clear all selections
+    clearAllBtn.addEventListener('click', function() {
+        fileCheckboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        updateSelection();
+    });
+    
+    // Handle individual checkbox changes
+    fileCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelection);
+    });
+    
+    // Update selection summary
+    function updateSelection() {
+        const selected = document.querySelectorAll('.file-checkbox:checked');
+        const count = selected.length;
+        
+        if (count > 0) {
+            selectedCount.textContent = count;
+            selectionSummary.style.display = 'block';
+            downloadBtn.disabled = false;
+            
+            // Check if selection exceeds limit
+            if (count > MAX_BATCH_SIZE) {
+                selectionSummary.innerHTML = `
+                    <div class="alert alert-warning">
+                        <strong>Selection Warning:</strong>
+                        ${count} files selected (maximum ${MAX_BATCH_SIZE} allowed)
+                        <br><small>Please reduce your selection to proceed</small>
+                    </div>
+                `;
+                downloadBtn.disabled = true;
+            } else {
+                selectionSummary.innerHTML = `
+                    <div class="alert alert-primary">
+                        <strong>Selection Summary:</strong>
+                        ${count} files selected
+                    </div>
+                `;
+                downloadBtn.disabled = false;
+            }
+        } else {
+            selectionSummary.style.display = 'none';
+            downloadBtn.disabled = true;
+        }
+    }
+    
+    // Form submission handler
+    form.addEventListener('submit', function(e) {
+        const selected = document.querySelectorAll('.file-checkbox:checked');
+        
+        if (selected.length === 0) {
+            e.preventDefault();
+            alert('Please select files to download');
+            return;
+        }
+        
+        if (selected.length > MAX_BATCH_SIZE) {
+            e.preventDefault();
+            alert(`Maximum ${MAX_BATCH_SIZE} files allowed per batch download`);
+            return;
+        }
+        
+        // Show progress bar
+        downloadBtn.disabled = true;
+        downloadProgress.style.display = 'block';
+        
+        // Simulate progress
+        let progress = 0;
+        const progressInterval = setInterval(function() {
+            progress += Math.random() * 10;
+            if (progress > 90) progress = 90;
+            
+            document.querySelector('.progress-bar').style.width = progress + '%';
+            progressText.textContent = `Decrypting files... ${Math.round(progress)}%`;
+        }, 1000);
+        
+        // Clear interval after some time
+        setTimeout(function() {
+            clearInterval(progressInterval);
+            document.querySelector('.progress-bar').style.width = '100%';
+            progressText.textContent = 'Download starting...';
+        }, 5000);
+    });
+});
+</script>
+
+<style>
+.table th {
+    border-top: none;
+    font-weight: 600;
+}
+
+.custom-control-label {
+    cursor: pointer;
+}
+
+.file-checkbox:checked ~ label::before {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.progress-bar {
+    transition: width 0.3s ease;
+}
+
+.badge {
+    font-size: 0.8em;
+}
+</style>
+{% endblock content %}

@@ -1,0 +1,332 @@
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Qubix - Secure File Upload{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-shield-alt mr-2"></i>
+                        Secure File Upload
+                    </h3>
+                    <p class="mb-0 mt-2 text-light">
+                        Upload and encrypt files for secure sharing
+                    </p>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Upload Information -->
+                    <div class="alert alert-info" role="alert">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Encryption Information
+                        </h5>
+                        <ul class="mb-0">
+                            <li><strong>Supported algorithms:</strong> {{ supported_algorithms|join:", " }}</li>
+                            <li><strong>Files are encrypted</strong> before storage using strong cryptographic algorithms</li>
+                            <li><strong>Share with friends</strong> who have ECC key pairs for secure access</li>
+                        </ul>
+                    </div>
+
+                    <!-- Upload Form -->
+                    <form method="post" enctype="multipart/form-data" id="secureUploadForm">
+                        {% csrf_token %}
+                        
+                        <!-- File Selection -->
+                        <div class="form-group">
+                            <label for="file" class="form-label">
+                                <strong>Select File</strong>
+                            </label>
+                            <input type="file" 
+                                   class="form-control-file" 
+                                   id="file" 
+                                   name="file" 
+                                   required>
+                            <small class="form-text text-muted">
+                                Choose a file to encrypt and upload securely
+                            </small>
+                        </div>
+
+                        <!-- Encryption Algorithm -->
+                        <div class="form-group">
+                            <label for="encryption_algorithm" class="form-label">
+                                <strong>Encryption Algorithm</strong>
+                            </label>
+                            <select class="form-control" id="encryption_algorithm" name="encryption_algorithm" required>
+                                <option value="">Choose encryption algorithm...</option>
+                                {% for algorithm in supported_algorithms %}
+                                    <option value="{{ algorithm }}">{{ algorithm }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">
+                                Select the encryption algorithm to protect your file
+                            </small>
+                        </div>
+
+                        <!-- Friend Selection for Sharing -->
+                        <div class="form-group">
+                            <label class="form-label">
+                                <strong>Share with Users & Groups</strong>
+                                <span class="text-muted">(Optional)</span>
+                            </label>
+                            
+                            <!-- Selection Mode Tabs -->
+                            <ul class="nav nav-tabs mb-3" id="recipientTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link active" id="friends-tab" data-toggle="tab" href="#friends-panel" role="tab">
+                                        <i class="fas fa-user-friends mr-1"></i>
+                                        Friends
+                                    </a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="groups-tab" data-toggle="tab" href="#groups-panel" role="tab">
+                                        <i class="fas fa-users mr-1"></i>
+                                        Groups
+                                    </a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="search-tab" data-toggle="tab" href="#search-panel" role="tab">
+                                        <i class="fas fa-search mr-1"></i>
+                                        Search Users
+                                    </a>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content" id="recipientTabContent">
+                                <!-- Friends Tab -->
+                                <div class="tab-pane fade show active" id="friends-panel" role="tabpanel">
+                                    {% if friends %}
+                                        <div class="form-check-container" style="max-height: 200px; overflow-y: auto; border: 1px solid #ced4da; border-radius: 0.25rem; padding: 10px;">
+                                            {% for friend in friends %}
+                                            <div class="form-check">
+                                                <input class="form-check-input" 
+                                                       type="checkbox" 
+                                                       value="{{ friend.id }}" 
+                                                       id="friend_{{ friend.id }}" 
+                                                       name="share_with_friends">
+                                                <label class="form-check-label" for="friend_{{ friend.id }}">
+                                                    <i class="fas fa-user mr-1"></i>
+                                                    {{ friend.username }}
+                                                    <small class="text-muted">({{ friend.first_name }} {{ friend.last_name }})</small>
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                                            No friends with ECC key pairs found.
+                                            <a href="{% url 'users-list' %}" class="alert-link">Find friends</a>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Groups Tab -->
+                                <div class="tab-pane fade" id="groups-panel" role="tabpanel">
+                                    {% if user_groups %}
+                                        <div class="form-check-container" style="max-height: 200px; overflow-y: auto; border: 1px solid #ced4da; border-radius: 0.25rem; padding: 10px;">
+                                            {% for group in user_groups %}
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" 
+                                                       type="checkbox" 
+                                                       value="{{ group.id }}" 
+                                                       id="group_{{ group.id }}" 
+                                                       name="share_with_groups">
+                                                <label class="form-check-label" for="group_{{ group.id }}">
+                                                    <div>
+                                                        <i class="fas fa-users mr-1"></i>
+                                                        <strong>{{ group.name }}</strong>
+                                                        {% if group.description %}
+                                                            <br><small class="text-muted">{{ group.description|truncatechars:50 }}</small>
+                                                        {% endif %}
+                                                        <br><small class="text-muted">{{ group.get_members_with_keys.count }} member{{ group.get_members_with_keys.count|pluralize }} with keys</small>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle mr-2"></i>
+                                            No groups available.
+                                            <a href="{% url 'create-group' %}" class="alert-link">Create a group</a>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Search Users Tab -->
+                                <div class="tab-pane fade" id="search-panel" role="tabpanel">
+                                    <div class="mb-3">
+                                        <div class="input-group">
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   id="userSearchInput" 
+                                                   placeholder="Search users by username or name...">
+                                            <div class="input-group-append">
+                                                <button class="btn btn-outline-secondary" type="button" onclick="searchUsers()">
+                                                    <i class="fas fa-search"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="searchResults" class="border rounded p-3" style="min-height: 150px; max-height: 200px; overflow-y: auto;">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-search fa-2x mb-2"></i>
+                                            <p>Enter a username or name to search</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <small class="form-text text-muted">
+                                Select friends, groups, or search for users to share this encrypted file with. They must have ECC key pairs.
+                            </small>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="form-group text-center">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-shield-alt mr-2"></i>
+                                Encrypt & Upload File
+                            </button>
+                            <a href="{% url 'secure-files-list' %}" class="btn btn-secondary btn-lg ml-2">
+                                <i class="fas fa-list mr-2"></i>
+                                View Files
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Progress Indicator -->
+<div class="modal fade" id="uploadModal" tabindex="-1" role="dialog" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+                <p class="mt-3 mb-0">Encrypting and uploading your file...</p>
+                <small class="text-muted">Please wait, this may take a moment.</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('secureUploadForm').addEventListener('submit', function(e) {
+    // Show upload modal
+    $('#uploadModal').modal('show');
+});
+
+// File size validation
+document.getElementById('file').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const maxSize = 100 * 1024 * 1024; // 100MB
+        if (file.size > maxSize) {
+            alert('File size exceeds 100MB limit. Please choose a smaller file.');
+            this.value = '';
+        }
+    }
+});
+
+// User search functionality
+function searchUsers() {
+    const searchTerm = document.getElementById('userSearchInput').value.trim();
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (searchTerm.length < 2) {
+        resultsContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-search fa-2x mb-2"></i>
+                <p>Please enter at least 2 characters to search</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Show loading
+    resultsContainer.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Searching...</span>
+            </div>
+            <p class="mt-2">Searching for users...</p>
+        </div>
+    `;
+    
+    // Make AJAX request to search for users
+    fetch('/api/search-users/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ search_term: searchTerm })
+    })
+    .then(response => response.json())
+    .then(data => {
+        displaySearchResults(data.users);
+    })
+    .catch(error => {
+        console.error('Search error:', error);
+        resultsContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                Error searching for users. Please try again.
+            </div>
+        `;
+    });
+}
+
+function displaySearchResults(users) {
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (users.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-user-slash fa-2x mb-2"></i>
+                <p>No users found with ECC keys</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let resultsHTML = '';
+    users.forEach(user => {
+        resultsHTML += `
+            <div class="form-check mb-2">
+                <input class="form-check-input" 
+                       type="checkbox" 
+                       value="${user.id}" 
+                       id="searchuser_${user.id}" 
+                       name="share_with_search_users">
+                <label class="form-check-label" for="searchuser_${user.id}">
+                    <i class="fas fa-user mr-1"></i>
+                    ${user.username}
+                    ${user.full_name ? `<small class="text-muted">(${user.full_name})</small>` : ''}
+                </label>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = resultsHTML;
+}
+
+// Search on Enter key
+document.addEventListener('keypress', function(e) {
+    if (e.target.id === 'userSearchInput' && e.key === 'Enter') {
+        e.preventDefault();
+        searchUsers();
+    }
+});
+</script>
+{% endblock content %}

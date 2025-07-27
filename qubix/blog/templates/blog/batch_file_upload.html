@@ -1,0 +1,724 @@
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Qubix - Batch File Upload{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-upload mr-2"></i>
+                        Batch File Upload
+                    </h3>
+                    <p class="mb-0 mt-2 text-light">
+                        Upload and encrypt multiple files simultaneously for secure sharing
+                    </p>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Batch Upload Information -->
+                    <div class="alert alert-info" role="alert">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Batch Upload Limits
+                        </h5>
+                        <ul class="mb-0">
+                            <li><strong>Maximum files per batch:</strong> {{ max_files_per_batch }}</li>
+                            <li><strong>Maximum file size:</strong> {{ max_file_size_mb }}MB per file</li>
+                            <li><strong>Maximum batch size:</strong> {{ max_batch_size_mb }}MB total</li>
+                            <li><strong>Supported algorithms:</strong> {{ supported_algorithms|join:", " }}</li>
+                        </ul>
+                    </div>
+
+                    <!-- Upload Form -->
+                    <form method="post" enctype="multipart/form-data" id="batchUploadForm">
+                        {% csrf_token %}
+                        
+                        <!-- File Selection -->
+                        <div class="form-group">
+                            <label for="batch_files" class="form-label">
+                                <strong>Select Files</strong>
+                                <span class="text-muted">(Hold Ctrl/Cmd to select multiple)</span>
+                            </label>
+                            <input type="file" 
+                                   class="form-control-file" 
+                                   id="batch_files" 
+                                   name="batch_files" 
+                                   multiple 
+                                   required>
+                            <small class="form-text text-muted">
+                                Select up to {{ max_files_per_batch }} files for batch encryption
+                            </small>
+                        </div>
+
+                        <!-- File Preview -->
+                        <div id="filePreview" class="mb-3" style="display: none;">
+                            <h6><strong>Selected Files:</strong></h6>
+                            <div id="fileList" class="border rounded p-2 bg-light">
+                                <!-- Files will be listed here via JavaScript -->
+                            </div>
+                            <div id="fileSummary" class="mt-2">
+                                <!-- File count and size summary -->
+                            </div>
+                        </div>
+
+                        <!-- Recipients Selection -->
+                        <div class="form-group">
+                            <label class="form-label">
+                                <strong>Share with Users & Groups</strong>
+                            </label>
+                            
+                            <!-- Selection Mode Tabs -->
+                            <ul class="nav nav-tabs mb-3" id="recipientTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link active" id="friends-tab" data-toggle="tab" href="#friends-panel" role="tab">
+                                        <i class="fas fa-user-friends mr-1"></i>
+                                        Friends
+                                    </a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="groups-tab" data-toggle="tab" href="#groups-panel" role="tab">
+                                        <i class="fas fa-users mr-1"></i>
+                                        Groups
+                                    </a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="search-tab" data-toggle="tab" href="#search-panel" role="tab">
+                                        <i class="fas fa-search mr-1"></i>
+                                        Search Users
+                                    </a>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content" id="recipientTabContent">
+                                <!-- Friends Tab -->
+                                <div class="tab-pane fade show active" id="friends-panel" role="tabpanel">
+                                    {% if friends %}
+                                        <div class="recipient-selection-area border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                            <div class="mb-2">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllFriends()">
+                                                    Select All
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ml-1" onclick="clearAllFriends()">
+                                                    Clear All
+                                                </button>
+                                                <span class="ml-3 text-muted">
+                                                    <span id="friendsSelectedCount">0</span> of {{ friends|length }} selected
+                                                </span>
+                                            </div>
+                                            <div class="row">
+                                                {% for friend in friends %}
+                                                    <div class="col-md-6 col-lg-4 mb-2">
+                                                        <div class="custom-control custom-checkbox">
+                                                            <input type="checkbox" 
+                                                                   class="custom-control-input friend-checkbox" 
+                                                                   id="friend_{{ friend.id }}" 
+                                                                   name="friends" 
+                                                                   value="{{ friend.id }}"
+                                                                   data-username="{{ friend.username }}">
+                                                            <label class="custom-control-label" for="friend_{{ friend.id }}">
+                                                                <div class="d-flex align-items-center">
+                                                                    <div class="user-avatar mr-2">
+                                                                        {% if friend.profile.image %}
+                                                                            <img src="{{ friend.profile.image.url }}" alt="Avatar" class="rounded-circle" width="24" height="24">
+                                                                        {% else %}
+                                                                            <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">
+                                                                                <span class="text-white text-sm">{{ friend.username|first|upper }}</span>
+                                                                            </div>
+                                                                        {% endif %}
+                                                                    </div>
+                                                                    <div>
+                                                                        <div class="font-weight-medium">{{ friend.username }}</div>
+                                                                        {% if friend.first_name or friend.last_name %}
+                                                                            <small class="text-muted">{{ friend.first_name }} {{ friend.last_name }}</small>
+                                                                        {% endif %}
+                                                                    </div>
+                                                                </div>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                                            You have no friends with active ECC keys to share files with.
+                                            <a href="{% url 'users-list' %}" class="alert-link">Find friends</a> or 
+                                            ask them to <a href="{% url 'key-management' %}" class="alert-link">generate keys</a>.
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Groups Tab -->
+                                <div class="tab-pane fade" id="groups-panel" role="tabpanel">
+                                    {% if user_groups %}
+                                        <div class="recipient-selection-area border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                            <div class="mb-2">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllGroups()">
+                                                    Select All
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ml-1" onclick="clearAllGroups()">
+                                                    Clear All
+                                                </button>
+                                                <span class="ml-3 text-muted">
+                                                    <span id="groupsSelectedCount">0</span> of {{ user_groups|length }} selected
+                                                </span>
+                                            </div>
+                                            {% for group in user_groups %}
+                                                <div class="card mb-2 group-card">
+                                                    <div class="card-body p-2">
+                                                        <div class="custom-control custom-checkbox">
+                                                            <input type="checkbox" 
+                                                                   class="custom-control-input group-checkbox" 
+                                                                   id="group_{{ group.id }}" 
+                                                                   name="groups" 
+                                                                   value="{{ group.id }}"
+                                                                   data-member-count="{{ group.get_members_with_keys.count }}">
+                                                            <label class="custom-control-label w-100" for="group_{{ group.id }}">
+                                                                <div class="d-flex justify-content-between align-items-start">
+                                                                    <div>
+                                                                        <h6 class="mb-1">{{ group.name }}</h6>
+                                                                        {% if group.description %}
+                                                                            <p class="text-muted mb-1 small">{{ group.description|truncatechars:60 }}</p>
+                                                                        {% endif %}
+                                                                        <small class="text-muted">
+                                                                            <i class="fas fa-users mr-1"></i>
+                                                                            {{ group.get_members_with_keys.count }} member{{ group.get_members_with_keys.count|pluralize }} with keys
+                                                                        </small>
+                                                                    </div>
+                                                                    <span class="badge badge-secondary">
+                                                                        {% if group.owner == user %}Owner{% else %}Member{% endif %}
+                                                                    </span>
+                                                                </div>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle mr-2"></i>
+                                            You haven't created or joined any groups yet.
+                                            <a href="{% url 'create-group' %}" class="alert-link">Create a group</a> to organize your contacts.
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Search Users Tab -->
+                                <div class="tab-pane fade" id="search-panel" role="tabpanel">
+                                    <div class="mb-3">
+                                        <div class="input-group">
+                                            <input type="text" 
+                                                   class="form-control" 
+                                                   id="userSearchInput" 
+                                                   placeholder="Search users by username or name...">
+                                            <div class="input-group-append">
+                                                <button class="btn btn-outline-secondary" type="button" onclick="searchUsers()">
+                                                    <i class="fas fa-search"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="searchResults" class="border rounded p-3" style="min-height: 200px; max-height: 300px; overflow-y: auto;">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-search fa-2x mb-2"></i>
+                                            <p>Enter a username or name to search for users</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Selected Recipients Summary -->
+                            <div class="mt-3">
+                                <div class="card bg-light">
+                                    <div class="card-body p-2">
+                                        <h6 class="mb-2">
+                                            <i class="fas fa-check-circle mr-1 text-success"></i>
+                                            Selected Recipients (<span id="totalSelectedCount">0</span>)
+                                        </h6>
+                                        <div id="selectedRecipientsSummary" class="text-muted">
+                                            No recipients selected
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Encryption Settings -->
+                        <div class="form-group">
+                            <label for="algorithm" class="form-label">
+                                <strong>Encryption Algorithm</strong>
+                            </label>
+                            <select class="form-control" id="algorithm" name="algorithm">
+                                {% for algo in supported_algorithms %}
+                                    <option value="{{ algo }}" {% if algo == "AES-256-GCM" %}selected{% endif %}>
+                                        {{ algo }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">
+                                AES-256-GCM is recommended for maximum compatibility
+                            </small>
+                        </div>
+
+                        <!-- Key Password -->
+                        <div class="form-group">
+                            <label for="key_password" class="form-label">
+                                <strong>Your Key Password</strong>
+                            </label>
+                            <input type="password" 
+                                   class="form-control" 
+                                   id="key_password" 
+                                   name="key_password" 
+                                   required 
+                                   placeholder="Enter your ECC key password">
+                            <small class="form-text text-muted">
+                                Required to decrypt your private key for file encryption
+                            </small>
+                        </div>
+
+                        <!-- Progress Bar (initially hidden) -->
+                        <div id="uploadProgress" class="mb-3" style="display: none;">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" 
+                                     style="width: 0%">
+                                    <span id="progressText">Preparing batch upload...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="form-group">
+                            <button type="submit" 
+                                    class="btn btn-primary btn-lg" 
+                                    id="uploadBtn">
+                                <i class="fas fa-upload mr-2"></i>
+                                Start Batch Upload
+                            </button>
+                            <a href="{% url 'secure-files-list' %}" class="btn btn-secondary btn-lg ml-2">
+                                <i class="fas fa-arrow-left mr-2"></i>
+                                Back to Files
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Performance Tips -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-lightbulb mr-2"></i>
+                        Performance Tips
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><strong>For Best Performance:</strong></h6>
+                            <ul>
+                                <li>Upload similar file types together</li>
+                                <li>Keep batch size under {{ max_batch_size_mb }}MB</li>
+                                <li>Use AES-256-GCM for fastest encryption</li>
+                                <li>Upload during off-peak hours</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><strong>Security Features:</strong></h6>
+                            <ul>
+                                <li>Each file encrypted with unique keys</li>
+                                <li>Perfect forward secrecy</li>
+                                <li>Concurrent processing for speed</li>
+                                <li>Automatic file validation</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration data for JavaScript -->
+{{ config_json|json_script:"batch-config" }}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('batch_files');
+    const filePreview = document.getElementById('filePreview');
+    const fileList = document.getElementById('fileList');
+    const fileSummary = document.getElementById('fileSummary');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const progressText = document.getElementById('progressText');
+    const form = document.getElementById('batchUploadForm');
+    
+    // Configuration from Django template
+    const config = JSON.parse(document.getElementById('batch-config').textContent);
+    const MAX_FILE_SIZE_MB = config.max_file_size_mb;
+    const MAX_FILES_PER_BATCH = config.max_files_per_batch;
+    const MAX_BATCH_SIZE_MB = config.max_batch_size_mb;
+    
+    // Recipient selection tracking
+    let selectedFriends = new Set();
+    let selectedGroups = new Set();
+    let selectedSearchUsers = new Set();
+    
+    // File selection handler
+    fileInput.addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        
+        if (files.length === 0) {
+            filePreview.style.display = 'none';
+            return;
+        }
+        
+        // Display selected files
+        fileList.innerHTML = '';
+        let totalSize = 0;
+        let validFiles = 0;
+        
+        files.forEach((file, index) => {
+            const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+            totalSize += file.size;
+            
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item mb-1';
+            
+            // Check file size
+            const isValidSize = file.size <= (MAX_FILE_SIZE_MB * 1024 * 1024);
+            if (isValidSize) validFiles++;
+            
+            fileItem.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center ${!isValidSize ? 'text-danger' : ''}">
+                    <span>
+                        <i class="fas fa-file mr-1"></i>
+                        ${file.name}
+                    </span>
+                    <span class="badge ${isValidSize ? 'badge-secondary' : 'badge-danger'}">
+                        ${fileSize} MB
+                    </span>
+                </div>
+                ${!isValidSize ? '<small class="text-danger">File exceeds size limit</small>' : ''}
+            `;
+            
+            fileList.appendChild(fileItem);
+        });
+        
+        // Display summary
+        const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+        const isValidBatch = files.length <= MAX_FILES_PER_BATCH && 
+                           totalSize <= (MAX_BATCH_SIZE_MB * 1024 * 1024) &&
+                           validFiles === files.length;
+        
+        fileSummary.innerHTML = `
+            <div class="alert ${isValidBatch ? 'alert-success' : 'alert-warning'}">
+                <strong>Batch Summary:</strong> 
+                ${files.length}/${MAX_FILES_PER_BATCH} files, 
+                ${totalSizeMB}/${MAX_BATCH_SIZE_MB} MB total
+                ${!isValidBatch ? '<br><small>Please review file size limits above</small>' : ''}
+            </div>
+        `;
+        
+        updateUploadButton();
+        filePreview.style.display = 'block';
+    });
+    
+    // Recipient selection handlers
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('friend-checkbox')) {
+            updateFriendSelection();
+        } else if (e.target.classList.contains('group-checkbox')) {
+            updateGroupSelection();
+        }
+        updateRecipientsSummary();
+        updateUploadButton();
+    });
+    
+    function updateFriendSelection() {
+        const checkboxes = document.querySelectorAll('.friend-checkbox');
+        selectedFriends.clear();
+        let selectedCount = 0;
+        
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                selectedFriends.add({
+                    id: checkbox.value,
+                    username: checkbox.dataset.username,
+                    type: 'friend'
+                });
+                selectedCount++;
+            }
+        });
+        
+        document.getElementById('friendsSelectedCount').textContent = selectedCount;
+    }
+    
+    function updateGroupSelection() {
+        const checkboxes = document.querySelectorAll('.group-checkbox');
+        selectedGroups.clear();
+        let selectedCount = 0;
+        
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                selectedGroups.add({
+                    id: checkbox.value,
+                    name: checkbox.closest('.card-body').querySelector('h6').textContent,
+                    memberCount: parseInt(checkbox.dataset.memberCount),
+                    type: 'group'
+                });
+                selectedCount++;
+            }
+        });
+        
+        document.getElementById('groupsSelectedCount').textContent = selectedCount;
+    }
+    
+    function updateRecipientsSummary() {
+        const totalSelected = selectedFriends.size + selectedGroups.size + selectedSearchUsers.size;
+        document.getElementById('totalSelectedCount').textContent = totalSelected;
+        
+        let summary = '';
+        if (totalSelected === 0) {
+            summary = 'No recipients selected';
+        } else {
+            const summaryParts = [];
+            
+            if (selectedFriends.size > 0) {
+                summaryParts.push(`${selectedFriends.size} friend${selectedFriends.size > 1 ? 's' : ''}`);
+            }
+            
+            if (selectedGroups.size > 0) {
+                const totalGroupMembers = Array.from(selectedGroups).reduce((sum, group) => sum + group.memberCount, 0);
+                summaryParts.push(`${selectedGroups.size} group${selectedGroups.size > 1 ? 's' : ''} (${totalGroupMembers} members)`);
+            }
+            
+            if (selectedSearchUsers.size > 0) {
+                summaryParts.push(`${selectedSearchUsers.size} searched user${selectedSearchUsers.size > 1 ? 's' : ''}`);
+            }
+            
+            summary = summaryParts.join(', ');
+        }
+        
+        document.getElementById('selectedRecipientsSummary').textContent = summary;
+    }
+    
+    function updateUploadButton() {
+        const files = fileInput.files;
+        const hasValidFiles = files.length > 0;
+        const hasRecipients = selectedFriends.size > 0 || selectedGroups.size > 0 || selectedSearchUsers.size > 0;
+        
+        uploadBtn.disabled = !hasValidFiles || !hasRecipients;
+    }
+    
+    // Form submission handler
+    form.addEventListener('submit', function(e) {
+        const files = fileInput.files;
+        const totalRecipients = selectedFriends.size + selectedGroups.size + selectedSearchUsers.size;
+        
+        if (files.length === 0) {
+            e.preventDefault();
+            alert('Please select files to upload');
+            return;
+        }
+        
+        if (totalRecipients === 0) {
+            e.preventDefault();
+            alert('Please select at least one recipient (friend, group, or user)');
+            return;
+        }
+        
+        // Show progress bar
+        uploadBtn.disabled = true;
+        uploadProgress.style.display = 'block';
+        
+        // Simulate progress (real progress would come from server)
+        let progress = 0;
+        const progressInterval = setInterval(function() {
+            progress += Math.random() * 15;
+            if (progress > 90) progress = 90;
+            
+            document.querySelector('.progress-bar').style.width = progress + '%';
+            progressText.textContent = `Processing batch upload... ${Math.round(progress)}%`;
+        }, 500);
+        
+        // Clear interval after form submission
+        setTimeout(function() {
+            clearInterval(progressInterval);
+        }, 1000);
+    });
+});
+
+// Helper functions for select all/clear all
+function selectAllFriends() {
+    const checkboxes = document.querySelectorAll('.friend-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateFriendSelection();
+    updateRecipientsSummary();
+    updateUploadButton();
+}
+
+function clearAllFriends() {
+    const checkboxes = document.querySelectorAll('.friend-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateFriendSelection();
+    updateRecipientsSummary();
+    updateUploadButton();
+}
+
+function selectAllGroups() {
+    const checkboxes = document.querySelectorAll('.group-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateGroupSelection();
+    updateRecipientsSummary();
+    updateUploadButton();
+}
+
+function clearAllGroups() {
+    const checkboxes = document.querySelectorAll('.group-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateGroupSelection();
+    updateRecipientsSummary();
+    updateUploadButton();
+}
+
+// User search functionality
+function searchUsers() {
+    const searchTerm = document.getElementById('userSearchInput').value.trim();
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (searchTerm.length < 2) {
+        resultsContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-search fa-2x mb-2"></i>
+                <p>Please enter at least 2 characters to search</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Show loading
+    resultsContainer.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Searching...</span>
+            </div>
+            <p class="mt-2">Searching for users...</p>
+        </div>
+    `;
+    
+    // Make AJAX request to search for users
+    fetch('/api/search-users/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ search_term: searchTerm })
+    })
+    .then(response => response.json())
+    .then(data => {
+        displaySearchResults(data.users);
+    })
+    .catch(error => {
+        console.error('Search error:', error);
+        resultsContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                Error searching for users. Please try again.
+            </div>
+        `;
+    });
+}
+
+function displaySearchResults(users) {
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (users.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-user-slash fa-2x mb-2"></i>
+                <p>No users found with ECC keys</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let resultsHTML = '';
+    users.forEach(user => {
+        resultsHTML += `
+            <div class="mb-2">
+                <div class="custom-control custom-checkbox">
+                    <input type="checkbox" 
+                           class="custom-control-input search-user-checkbox" 
+                           id="searchuser_${user.id}" 
+                           name="search_users" 
+                           value="${user.id}"
+                           data-username="${user.username}">
+                    <label class="custom-control-label" for="searchuser_${user.id}">
+                        <div class="d-flex align-items-center">
+                            <div class="user-avatar mr-2">
+                                <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">
+                                    <span class="text-white text-sm">${user.username.charAt(0).toUpperCase()}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="font-weight-medium">${user.username}</div>
+                                ${user.full_name ? `<small class="text-muted">${user.full_name}</small>` : ''}
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = resultsHTML;
+}
+
+// Search on Enter key
+document.addEventListener('keypress', function(e) {
+    if (e.target.id === 'userSearchInput' && e.key === 'Enter') {
+        e.preventDefault();
+        searchUsers();
+    }
+});
+</script>
+
+<style>
+.file-item {
+    padding: 8px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.file-item:last-child {
+    border-bottom: none;
+}
+
+.progress-bar {
+    transition: width 0.3s ease;
+}
+
+.custom-control-label {
+    font-weight: normal;
+}
+
+.alert-heading {
+    color: inherit;
+}
+</style>
+{% endblock content %}

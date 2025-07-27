@@ -464,3 +464,117 @@ def remove_friend(request, user_id):
             messages.error(request, f"You are not friends with {friend.username}.")
     
     return redirect('friends-list')
+
+
+# User Group Management Views
+
+@login_required
+def groups_list(request):
+    """List user's groups"""
+    from .models import UserGroup
+    
+    # Groups owned by user
+    owned_groups = UserGroup.objects.filter(owner=request.user, is_active=True)
+    
+    # Groups user is a member of
+    member_groups = UserGroup.objects.filter(
+        members=request.user, 
+        is_active=True
+    ).exclude(owner=request.user)
+    
+    context = {
+        'owned_groups': owned_groups,
+        'member_groups': member_groups,
+    }
+    return render(request, 'users/groups_list.html', context)
+
+
+@login_required
+def create_group(request):
+    """Create a new user group"""
+    from .models import UserGroup, GroupMembership
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        description = request.POST.get('description', '')
+        selected_members = request.POST.getlist('members')
+        
+        if not name:
+            messages.error(request, "Group name is required.")
+            return redirect('create-group')
+        
+        # Check if group name already exists for this user
+        if UserGroup.objects.filter(owner=request.user, name=name).exists():
+            messages.error(request, "You already have a group with this name.")
+            return redirect('create-group')
+        
+        try:
+            # Create the group
+            group = UserGroup.objects.create(
+                name=name,
+                description=description,
+                owner=request.user
+            )
+            
+            # Add selected members
+            for member_id in selected_members:
+                try:
+                    member_user = User.objects.get(id=member_id)
+                    GroupMembership.objects.create(
+                        user=member_user,
+                        group=group,
+                        role=GroupMembership.MEMBER
+                    )
+                except User.DoesNotExist:
+                    continue
+            
+            messages.success(request, f"Group '{name}' created successfully with {len(selected_members)} members.")
+            return redirect('groups-list')
+            
+        except Exception as e:
+            messages.error(request, f"Failed to create group: {str(e)}")
+    
+    # GET request - show form
+    # Get user's friends to add to group
+    friends = Friendship.get_friends(request.user)
+    # Filter friends with ECC keys
+    friends_with_keys = []
+    for friend in friends:
+        try:
+            ECCKeyPair.objects.get(user=friend, is_active=True)
+            friends_with_keys.append(friend)
+        except ECCKeyPair.DoesNotExist:
+            continue
+    
+    context = {
+        'friends': friends_with_keys,
+    }
+    return render(request, 'users/create_group.html', context)
+
+
+@login_required
+def group_detail(request, group_id):
+    """View group details and manage members"""
+    from .models import UserGroup, GroupMembership
+    
+    group = get_object_or_404(UserGroup, id=group_id, is_active=True)
+    
+    # Check if user has access to this group
+    if group.owner != request.user and not group.members.filter(id=request.user.id).exists():
+        messages.error(request, "You don't have access to this group.")
+        return redirect('groups-list')
+    
+    # Get group memberships
+    memberships = GroupMembership.objects.filter(group=group, is_active=True).select_related('user')
+    
+    # Check if user can edit (is owner or admin)
+    user_membership = GroupMembership.objects.filter(group=group, user=request.user, is_active=True).first()
+    can_edit = group.owner == request.user or (user_membership and user_membership.role == GroupMembership.ADMIN)
+    
+    context = {
+        'group': group,
+        'memberships': memberships,
+        'can_edit': can_edit,
+        'is_owner': group.owner == request.user,
+    }
+    return render(request, 'users/group_detail.html', context)

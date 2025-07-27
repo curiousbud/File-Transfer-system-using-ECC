@@ -74,6 +74,11 @@ urlpatterns = [
     path('friends/', user_views.friends_list, name='friends-list'),
     path('remove-friend/<int:user_id>/', user_views.remove_friend, name='remove-friend'),
     
+    # Group Management URLs
+    path('groups/', user_views.groups_list, name='groups-list'),
+    path('groups/create/', user_views.create_group, name='create-group'),
+    path('groups/<int:group_id>/', user_views.group_detail, name='group-detail'),
+    
     path('', include('blog.urls')),
 ]
 

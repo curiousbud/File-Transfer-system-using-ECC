@@ -1,0 +1,315 @@
+{% extends "blog/base.html" %}
+
+{% block title %}Qubix - Batch Operation Status{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-chart-line mr-2"></i>
+                        Batch Operation Status & Performance
+                    </h3>
+                    <p class="mb-0 mt-2 text-light">
+                        Monitor your batch processing performance and recent activity
+                    </p>
+                </div>
+                
+                <div class="card-body">
+                    <!-- System Performance Stats -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card border-primary">
+                                <div class="card-body text-center">
+                                    <h4 class="text-primary">{{ processor_stats.max_workers }}</h4>
+                                    <p class="mb-0 text-muted">Max Workers</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-success">
+                                <div class="card-body text-center">
+                                    <h4 class="text-success">{{ user_file_count }}</h4>
+                                    <p class="mb-0 text-muted">Files Uploaded</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-warning">
+                                <div class="card-body text-center">
+                                    <h4 class="text-warning">{{ user_access_count }}</h4>
+                                    <p class="mb-0 text-muted">Files Accessible</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-info">
+                                <div class="card-body text-center">
+                                    <h4 class="text-info">{{ processor_stats.supported_operations|length }}</h4>
+                                    <p class="mb-0 text-muted">Operations</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Supported Operations -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-cogs mr-2"></i>
+                                        Supported Operations
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled">
+                                        {% for operation in processor_stats.supported_operations %}
+                                            <li class="mb-2">
+                                                <i class="fas fa-check-circle text-success mr-2"></i>
+                                                <code>{{ operation }}</code>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-shield-alt mr-2"></i>
+                                        Performance Features
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled">
+                                        {% for feature in processor_stats.performance_features %}
+                                            <li class="mb-2">
+                                                <i class="fas fa-bolt text-warning mr-2"></i>
+                                                {{ feature }}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-upload mr-2"></i>
+                                        Recent Uploads
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    {% if recent_uploads %}
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>File</th>
+                                                        <th>Algorithm</th>
+                                                        <th>Date</th>
+                                                        <th>Size</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for file in recent_uploads %}
+                                                        <tr>
+                                                            <td>
+                                                                <i class="fas fa-file text-primary mr-1"></i>
+                                                                {{ file.original_filename|truncatechars:25 }}
+                                                            </td>
+                                                            <td>
+                                                                <span class="badge badge-secondary badge-sm">
+                                                                    {{ file.encryption_algorithm }}
+                                                                </span>
+                                                            </td>
+                                                            <td class="text-muted">{{ file.uploaded_at|date:"M d" }}</td>
+                                                            <td class="text-muted">{{ file.get_file_size_display }}</td>
+                                                        </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    {% else %}
+                                        <p class="text-muted mb-0">
+                                            <i class="fas fa-info-circle mr-2"></i>
+                                            No recent uploads
+                                        </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-download mr-2"></i>
+                                        Recent Downloads
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    {% if recent_downloads %}
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>File</th>
+                                                        <th>Shared By</th>
+                                                        <th>Last Access</th>
+                                                        <th>Count</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for access in recent_downloads %}
+                                                        <tr>
+                                                            <td>
+                                                                <i class="fas fa-file text-success mr-1"></i>
+                                                                {{ access.file.original_filename|truncatechars:25 }}
+                                                            </td>
+                                                            <td>
+                                                                <span class="badge badge-info badge-sm">
+                                                                    {{ access.file.uploaded_by.username }}
+                                                                </span>
+                                                            </td>
+                                                            <td class="text-muted">{{ access.last_accessed_at|date:"M d" }}</td>
+                                                            <td>
+                                                                <span class="badge badge-light">{{ access.access_count }}</span>
+                                                            </td>
+                                                        </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    {% else %}
+                                        <p class="text-muted mb-0">
+                                            <i class="fas fa-info-circle mr-2"></i>
+                                            No recent downloads
+                                        </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-rocket mr-2"></i>
+                                        Quick Actions
+                                    </h6>
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'batch-upload' %}" class="btn btn-primary">
+                                            <i class="fas fa-upload mr-2"></i>
+                                            Batch Upload
+                                        </a>
+                                        <a href="{% url 'batch-file-download' %}" class="btn btn-success">
+                                            <i class="fas fa-download mr-2"></i>
+                                            Batch Download
+                                        </a>
+                                        <a href="{% url 'secure-files-list' %}" class="btn btn-info">
+                                            <i class="fas fa-list mr-2"></i>
+                                            View All Files
+                                        </a>
+                                        <a href="{% url 'encryption-benchmark' %}" class="btn btn-warning">
+                                            <i class="fas fa-chart-bar mr-2"></i>
+                                            Run Benchmark
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance Optimization Tips -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-lightbulb mr-2"></i>
+                        Performance Optimization Tips
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6><strong>Upload Optimization:</strong></h6>
+                            <ul>
+                                <li>Use batch operations for multiple files</li>
+                                <li>Keep individual files under 100MB</li>
+                                <li>Group similar file types together</li>
+                                <li>Use AES-256-GCM for fastest encryption</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><strong>Download Optimization:</strong></h6>
+                            <ul>
+                                <li>Download multiple files as ZIP archive</li>
+                                <li>Use batch download for efficiency</li>
+                                <li>Keep browser window open during processing</li>
+                                <li>Avoid downloading the same files repeatedly</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><strong>System Performance:</strong></h6>
+                            <ul>
+                                <li>{{ processor_stats.max_workers }} concurrent workers active</li>
+                                <li>Files processed in parallel for speed</li>
+                                <li>Memory-efficient chunked processing</li>
+                                <li>Automatic error isolation and recovery</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.badge-sm {
+    font-size: 0.7em;
+}
+
+.table-sm th,
+.table-sm td {
+    padding: 0.5rem;
+}
+
+.btn-group .btn {
+    margin-right: 0;
+}
+
+.list-unstyled li {
+    padding: 0.25rem 0;
+}
+
+code {
+    background-color: #f8f9fa;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+}
+</style>
+{% endblock content %}

@@ -1,55 +1,448 @@
 {% extends "blog/base.html" %}
+{% load blog_extras %}
+
+{% block title %}Qubix - Secure File Sharing{% endblock title %}
+
 {% block content %}
-    {% for post in posts %}
-      <div class="jumbotron mt-3 bg-white shadow-lg">
-      <article class="media content-section shadow">
-        <a href="{{ post.author.profile.image.url }} " target="_blank"> <img src="{{ post.author.profile.image.url }}  " alt="" class="article-img rounded-circle img-thumbnail img-fluid shadow">
-        </a>
-        <div class="media-body">
-          <div class="article-metadata d-flex justify-content-between">
-            <a class="mr-2 " href="{% url 'user-posts' post.author.username  %}"><h3>{{ post.author }}</h3></a>
-              <small class="text-muted">{{ post.date_upload|date:"F d, Y" }}</small>
-          </div>
-          {% if post.file %}
-          <a href="{% url 'secure-download' post.pk %}"  download class="text-dark text-justify "><h5>{{ post.title }}</h5></a>
-          {% endif %}
-     
-      
-     
-          <h2><a class="article-title text-justify " href="{% url 'post-detail' post.id %}">{{ post.title }}</a></h2>
-          <div class="d-flex justify-content-between">
-            <p class="article-content text-justify text-truncate overflow-hidden">{{ post.content }}</p>
-            {% if post.file %}
-          <div class="form-group mt-0 pt-0  m-2">          
-            <a class="btn btn-outline-primary  btn-d "  href="{% url 'secure-download' post.pk %}"  download type="submit"><i class="fas fa-download"></i></a>
-          </div>
-          {% endif %}
-        
-          </div>
-      
+<div class="container-fluid">
+    <!-- Hero Section -->
+    {% if not user.is_authenticated %}
+    <div class="row">
+        <div class="col-12">
+            <div class="jumbotron bg-gradient-primary text-white mb-4">
+                <div class="container text-center">
+                    <h1 class="display-4 font-weight-bold">
+                        <i class="fas fa-shield-alt mr-3"></i>
+                        Welcome to Qubix
+                    </h1>
+                    <p class="lead">
+                        Secure file sharing with military-grade encryption, group collaboration, and seamless user experience
+                    </p>
+                    <hr class="my-4 bg-white">
+                    <p class="mb-4">Join thousands of users who trust Qubix for their secure file sharing needs</p>
+                    <a class="btn btn-light btn-lg mr-3" href="{% url 'register' %}" role="button">
+                        <i class="fas fa-user-plus mr-2"></i>
+                        Get Started
+                    </a>
+                    <a class="btn btn-outline-light btn-lg" href="{% url 'login' %}" role="button">
+                        <i class="fas fa-sign-in-alt mr-2"></i>
+                        Sign In
+                    </a>
+                </div>
+            </div>
         </div>
-      </article>
-      </div>   
-    {% endfor %}
-    {% if is_paginated %}
-
-      {% if page_obj.has_previous %}
-        <a class="btn btn-outline-info mb-4" href="?page=1">First</a>
-        <a class="btn btn-outline-info mb-4" href="?page={{ page_obj.previous_page_number }}">Previous</a>
-      {% endif %}
-
-      {% for num in page_obj.paginator.page_range %}
-        {% if page_obj.number == num %}
-          <a class="btn btn-info mb-4" href="?page={{ num }}">{{ num }}</a>
-        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-          <a class="btn btn-outline-info mb-4" href="?page={{ num }}">{{ num }}</a>
-        {% endif %}
-      {% endfor %}
-
-      {% if page_obj.has_next %}
-        <a class="btn btn-outline-info mb-4" href="?page={{ page_obj.next_page_number }}">Next</a>
-        <a class="btn btn-outline-info mb-4" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
-      {% endif %}
-
+    </div>
+    
+    <!-- Features Section -->
+    <div class="row mb-5">
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-lock fa-3x text-primary mb-3"></i>
+                    <h4>Military-Grade Encryption</h4>
+                    <p class="text-muted">
+                        ECC hybrid encryption with AES-256-GCM ensures your files are protected with the strongest security available.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-users fa-3x text-success mb-3"></i>
+                    <h4>Group Collaboration</h4>
+                    <p class="text-muted">
+                        Organize contacts into groups, share files with multiple users at once, and collaborate securely.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-rocket fa-3x text-warning mb-3"></i>
+                    <h4>Batch Operations</h4>
+                    <p class="text-muted">
+                        Upload and download multiple files simultaneously with progress tracking and error handling.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
     {% endif %}
+
+    <!-- Authenticated User Dashboard -->
+    {% if user.is_authenticated %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h3 class="mb-1">
+                                <i class="fas fa-home mr-2"></i>
+                                Welcome back, {{ user.username }}!
+                            </h3>
+                            <p class="mb-0">Manage your secure files, collaborate with groups, and stay connected with friends.</p>
+                        </div>
+                        <div class="col-md-4 text-md-right">
+                            <a href="{% url 'secure-file-upload' %}" class="btn btn-light mr-2">
+                                <i class="fas fa-upload mr-1"></i>
+                                Upload File
+                            </a>
+                            <a href="{% url 'batch-upload' %}" class="btn btn-outline-light">
+                                <i class="fas fa-layer-group mr-1"></i>
+                                Batch Upload
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-gradient-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ user_stats.total_files|default:0 }}</h4>
+                            <p class="mb-0">Secure Files</p>
+                        </div>
+                        <div>
+                            <i class="fas fa-file-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="{% url 'secure-files-list' %}" class="text-white text-decoration-none">
+                        <small>View all files <i class="fas fa-arrow-right"></i></small>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-gradient-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ user_stats.total_friends|default:0 }}</h4>
+                            <p class="mb-0">Friends</p>
+                        </div>
+                        <div>
+                            <i class="fas fa-user-friends fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="{% url 'friends-list' %}" class="text-white text-decoration-none">
+                        <small>Manage friends <i class="fas fa-arrow-right"></i></small>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-gradient-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ user_stats.total_groups|default:0 }}</h4>
+                            <p class="mb-0">Groups</p>
+                        </div>
+                        <div>
+                            <i class="fas fa-users fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="{% url 'groups-list' %}" class="text-white text-decoration-none">
+                        <small>Manage groups <i class="fas fa-arrow-right"></i></small>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-gradient-danger text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ user_stats.recent_posts|default:0 }}</h4>
+                            <p class="mb-0">Recent Posts</p>
+                        </div>
+                        <div>
+                            <i class="fas fa-newspaper fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="{% url 'post-create' %}" class="text-white text-decoration-none">
+                        <small>Create post <i class="fas fa-arrow-right"></i></small>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt mr-2"></i>
+                        Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <a href="{% url 'secure-file-upload' %}" class="btn btn-outline-primary btn-block">
+                                <i class="fas fa-upload d-block fa-2x mb-2"></i>
+                                Upload File
+                            </a>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <a href="{% url 'batch-upload' %}" class="btn btn-outline-success btn-block">
+                                <i class="fas fa-layer-group d-block fa-2x mb-2"></i>
+                                Batch Upload
+                            </a>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <a href="{% url 'post-create' %}" class="btn btn-outline-info btn-block">
+                                <i class="fas fa-plus d-block fa-2x mb-2"></i>
+                                Create Post
+                            </a>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <a href="{% url 'create-group' %}" class="btn btn-outline-warning btn-block">
+                                <i class="fas fa-users-cog d-block fa-2x mb-2"></i>
+                                Create Group
+                            </a>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <a href="{% url 'user-search' %}" class="btn btn-outline-secondary btn-block">
+                                <i class="fas fa-search d-block fa-2x mb-2"></i>
+                                Find Friends
+                            </a>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+                            <a href="{% url 'encryption-benchmark' %}" class="btn btn-outline-dark btn-block">
+                                <i class="fas fa-tachometer-alt d-block fa-2x mb-2"></i>
+                                Benchmark
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Posts Feed -->
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4>
+                    <i class="fas fa-stream mr-2"></i>
+                    {% if user.is_authenticated %}Your Feed{% else %}Latest Posts{% endif %}
+                </h4>
+                {% if user.is_authenticated %}
+                <a href="{% url 'post-create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus mr-1"></i>
+                    Create Post
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if posts %}
+    <div class="row">
+        {% for post in posts %}
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-white">
+                    <div class="d-flex align-items-center">
+                        <a href="{% url 'user-posts' post.author.username %}">
+                            <img src="{{ post.author.profile.image.url }}" alt="Avatar" class="rounded-circle mr-3" width="40" height="40">
+                        </a>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0">
+                                <a href="{% url 'user-posts' post.author.username %}" class="text-decoration-none">
+                                    {{ post.author.username }}
+                                </a>
+                            </h6>
+                            <small class="text-muted">{{ post.date_posted|date:"M d, Y \a\t g:i A" }}</small>
+                        </div>
+                        <div>
+                            <span class="badge badge-{{ post.visibility|yesno:'success,warning,danger' }}">
+                                {% if post.visibility == 'public' %}
+                                    <i class="fas fa-globe mr-1"></i>Public
+                                {% elif post.visibility == 'friends' %}
+                                    <i class="fas fa-users mr-1"></i>Friends
+                                {% else %}
+                                    <i class="fas fa-lock mr-1"></i>Private
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <a href="{% url 'post-detail' post.id %}" class="text-decoration-none">
+                            {{ post.title }}
+                        </a>
+                    </h5>
+                    <p class="card-text">{{ post.content|truncatewords:20 }}</p>
+                    
+                    {% if post.file %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-paperclip mr-2"></i>
+                        <strong>Attachment:</strong> {{ post.file.name|basename }}
+                        <a href="{% url 'secure-download' post.pk %}" class="btn btn-sm btn-outline-primary ml-2">
+                            <i class="fas fa-download mr-1"></i>
+                            Download
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="fas fa-eye mr-1"></i>
+                            {{ post.visibility|title }} visibility
+                        </small>
+                        <div>
+                            <a href="{% url 'post-detail' post.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye mr-1"></i>
+                                View
+                            </a>
+                            {% if post.author == user %}
+                            <a href="{% url 'post-update' post.id %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-edit mr-1"></i>
+                                Edit
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="Posts pagination">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">
+                            <i class="fas fa-angle-double-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                            <i class="fas fa-angle-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                            <i class="fas fa-angle-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">
+                            <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="fas fa-newspaper fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">No posts available</h4>
+                <p class="text-muted">
+                    {% if user.is_authenticated %}
+                        Be the first to share something with the community!
+                    {% else %}
+                        Sign up to start sharing and viewing posts.
+                    {% endif %}
+                </p>
+                {% if user.is_authenticated %}
+                <a href="{% url 'post-create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus mr-1"></i>
+                    Create First Post
+                </a>
+                {% else %}
+                <a href="{% url 'register' %}" class="btn btn-primary">
+                    <i class="fas fa-user-plus mr-1"></i>
+                    Get Started
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.bg-gradient-info {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.bg-gradient-warning {
+    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+.bg-gradient-danger {
+    background: linear-gradient(135deg, #ff6a88 0%, #ff99ac 100%);
+}
+
+.card {
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.btn-block i {
+    color: inherit;
+}
+</style>
 {% endblock content %}

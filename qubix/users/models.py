@@ -215,3 +215,56 @@ class KeyRotationLog(models.Model):
     
     def __str__(self):
         return f'{self.user.username} key rotation: v{self.old_key_version} -> v{self.new_key_version}'
+
+
+class UserGroup(models.Model):
+    """
+    Model for organizing users into groups for easier file sharing
+    """
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='owned_groups')
+    members = models.ManyToManyField(User, through='GroupMembership', related_name='user_groups')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('owner', 'name')
+        ordering = ['name']
+    
+    def __str__(self):
+        return f'{self.name} (by {self.owner.username})'
+    
+    def get_active_members(self):
+        """Get all active members of the group"""
+        return self.members.filter(groupmembership__is_active=True)
+    
+    def get_members_with_keys(self):
+        """Get group members who have active ECC keys"""
+        return self.get_active_members().filter(ecc_keypair__is_active=True)
+
+
+class GroupMembership(models.Model):
+    """
+    Through model for UserGroup membership with additional metadata
+    """
+    MEMBER = 'member'
+    ADMIN = 'admin'
+    
+    ROLE_CHOICES = [
+        (MEMBER, 'Member'),
+        (ADMIN, 'Admin'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    group = models.ForeignKey(UserGroup, on_delete=models.CASCADE)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=MEMBER)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('user', 'group')
+    
+    def __str__(self):
+        return f'{self.user.username} in {self.group.name} ({self.role})'

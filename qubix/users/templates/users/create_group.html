@@ -1,0 +1,189 @@
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Qubix - Create Group{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-plus mr-2"></i>
+                        Create New Group
+                    </h3>
+                    <p class="mb-0 mt-2 text-light">
+                        Organize your contacts into groups for easier file sharing
+                    </p>
+                </div>
+                
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Group Name -->
+                        <div class="form-group">
+                            <label for="name" class="form-label">
+                                <strong>Group Name</strong>
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="name" 
+                                   name="name" 
+                                   required 
+                                   maxlength="100"
+                                   placeholder="Enter a descriptive group name">
+                            <small class="form-text text-muted">
+                                Choose a unique name for your group (e.g., "Work Team", "Family", "Project Alpha")
+                            </small>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="form-group">
+                            <label for="description" class="form-label">
+                                <strong>Description</strong>
+                                <span class="text-muted">(Optional)</span>
+                            </label>
+                            <textarea class="form-control" 
+                                      id="description" 
+                                      name="description" 
+                                      rows="3"
+                                      placeholder="Describe the purpose of this group..."></textarea>
+                            <small class="form-text text-muted">
+                                Help members understand the group's purpose
+                            </small>
+                        </div>
+
+                        <!-- Member Selection -->
+                        <div class="form-group">
+                            <label class="form-label">
+                                <strong>Add Members</strong>
+                                <span class="text-muted">(Choose from your friends)</span>
+                            </label>
+                            
+                            {% if friends %}
+                                <div class="alert alert-info" role="alert">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    Only friends with ECC key pairs can be added to groups for secure file sharing.
+                                </div>
+                                
+                                <div class="member-selection-area border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="mb-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllMembers()">
+                                            Select All
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary ml-1" onclick="clearAllMembers()">
+                                            Clear All
+                                        </button>
+                                        <span class="ml-3 text-muted">
+                                            <span id="selectedCount">0</span> of {{ friends|length }} selected
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        {% for friend in friends %}
+                                            <div class="col-md-6 mb-2">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" 
+                                                           class="custom-control-input member-checkbox" 
+                                                           id="member_{{ friend.id }}" 
+                                                           name="members" 
+                                                           value="{{ friend.id }}">
+                                                    <label class="custom-control-label" for="member_{{ friend.id }}">
+                                                        <div class="d-flex align-items-center">
+                                                            <div class="user-avatar mr-2">
+                                                                {% if friend.profile.image %}
+                                                                    <img src="{{ friend.profile.image.url }}" alt="Avatar" class="rounded-circle" width="24" height="24">
+                                                                {% else %}
+                                                                    <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">
+                                                                        <span class="text-white text-sm">{{ friend.username|first|upper }}</span>
+                                                                    </div>
+                                                                {% endif %}
+                                                            </div>
+                                                            <div>
+                                                                <div class="font-weight-medium">{{ friend.username }}</div>
+                                                                {% if friend.first_name or friend.last_name %}
+                                                                    <small class="text-muted">{{ friend.first_name }} {{ friend.last_name }}</small>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                
+                                <small class="form-text text-muted">
+                                    You can add or remove members later from the group details page.
+                                </small>
+                            {% else %}
+                                <div class="alert alert-warning" role="alert">
+                                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                                    You don't have any friends with ECC keys to add to a group.
+                                    <a href="{% url 'user-search' %}" class="alert-link">Find friends</a> first, 
+                                    then ask them to <a href="{% url 'key-management' %}" class="alert-link">generate ECC keys</a>.
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="form-group text-center">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-plus mr-2"></i>
+                                Create Group
+                            </button>
+                            <a href="{% url 'groups-list' %}" class="btn btn-secondary btn-lg ml-2">
+                                <i class="fas fa-arrow-left mr-2"></i>
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function selectAllMembers() {
+    const checkboxes = document.querySelectorAll('.member-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateSelectedCount();
+}
+
+function clearAllMembers() {
+    const checkboxes = document.querySelectorAll('.member-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.member-checkbox:checked');
+    document.getElementById('selectedCount').textContent = checkboxes.length;
+}
+
+// Update count when checkboxes change
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('member-checkbox')) {
+        updateSelectedCount();
+    }
+});
+
+// Form validation
+document.querySelector('form').addEventListener('submit', function(e) {
+    const groupName = document.getElementById('name').value.trim();
+    if (!groupName) {
+        e.preventDefault();
+        alert('Please enter a group name.');
+        return;
+    }
+});
+</script>
+{% endblock content %}

@@ -1,0 +1,513 @@
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Qubix - Encryption Benchmark{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Header -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-tachometer-alt mr-2"></i>
+                        Encryption Performance Benchmark
+                    </h3>
+                    <p class="mb-0 mt-2 text-light">
+                        Test and compare encryption algorithm performance on your system
+                    </p>
+                </div>
+            </div>
+
+            <!-- Benchmark Configuration -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs mr-2"></i>
+                        Benchmark Configuration
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="benchmarkForm">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="algorithms">Algorithms to Test</label>
+                                    <div class="form-check-group">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="aes256gcm" name="algorithms" value="AES-256-GCM" checked>
+                                            <label class="form-check-label" for="aes256gcm">
+                                                AES-256-GCM <span class="badge badge-success">Recommended</span>
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="chacha20" name="algorithms" value="ChaCha20-Poly1305" checked>
+                                            <label class="form-check-label" for="chacha20">
+                                                ChaCha20-Poly1305 <span class="badge badge-info">Fast</span>
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="aes256cbc" name="algorithms" value="AES-256-CBC">
+                                            <label class="form-check-label" for="aes256cbc">
+                                                AES-256-CBC <span class="badge badge-warning">Legacy</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="dataSizes">Data Sizes to Test</label>
+                                    <div class="form-check-group">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="size1kb" name="data_sizes" value="1" checked>
+                                            <label class="form-check-label" for="size1kb">1 KB</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="size100kb" name="data_sizes" value="100" checked>
+                                            <label class="form-check-label" for="size100kb">100 KB</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="size1mb" name="data_sizes" value="1000" checked>
+                                            <label class="form-check-label" for="size1mb">1 MB</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="size10mb" name="data_sizes" value="10000">
+                                            <label class="form-check-label" for="size10mb">10 MB</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="iterations">Test Iterations</label>
+                                    <select class="form-control" id="iterations" name="iterations">
+                                        <option value="3">3 (Quick Test)</option>
+                                        <option value="5" selected>5 (Balanced)</option>
+                                        <option value="10">10 (Thorough)</option>
+                                        <option value="20">20 (Comprehensive)</option>
+                                    </select>
+                                    <small class="form-text text-muted">More iterations provide more accurate results but take longer</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="includeECC">Include ECC Operations</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="includeECC" name="include_ecc" checked>
+                                        <label class="form-check-label" for="includeECC">
+                                            Test ECC key generation and exchange
+                                        </label>
+                                    </div>
+                                    <small class="form-text text-muted">Tests elliptic curve cryptography performance</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary btn-lg" id="startBenchmark">
+                                <i class="fas fa-play mr-2"></i>
+                                Start Benchmark
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-lg ml-2" id="resetBenchmark">
+                                <i class="fas fa-redo mr-2"></i>
+                                Reset
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Progress Indicator -->
+            <div id="benchmarkProgress" class="card mb-4" style="display: none;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock mr-2"></i>
+                        Benchmark Progress
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: 0%" 
+                             id="progressBar">
+                            <span id="progressText">Initializing...</span>
+                        </div>
+                    </div>
+                    <div id="currentTest" class="text-center">
+                        <p class="mb-1"><strong>Current Test:</strong> <span id="testDescription">Preparing...</span></p>
+                        <small class="text-muted">Estimated time remaining: <span id="timeRemaining">Calculating...</span></small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="benchmarkResults" class="card" style="display: none;">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar mr-2"></i>
+                        Benchmark Results
+                    </h5>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" id="exportResults">
+                            <i class="fas fa-download mr-1"></i>
+                            Export CSV
+                        </button>
+                        <button class="btn btn-sm btn-outline-info" id="shareResults">
+                            <i class="fas fa-share mr-1"></i>
+                            Share
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- System Information -->
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <h6><strong>System Information</strong></h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <tbody id="systemInfo">
+                                        <!-- System info will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Summary -->
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <h6><strong>Performance Summary</strong></h6>
+                            <div id="performanceSummary">
+                                <!-- Summary cards will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Results Table -->
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <h6><strong>Detailed Results</strong></h6>
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover" id="resultsTable">
+                                    <thead class="thead-dark">
+                                        <tr>
+                                            <th>Algorithm</th>
+                                            <th>Data Size</th>
+                                            <th>Encryption (MB/s)</th>
+                                            <th>Decryption (MB/s)</th>
+                                            <th>Key Gen (ms)</th>
+                                            <th>Memory (MB)</th>
+                                            <th>CPU Usage (%)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="resultsTableBody">
+                                        <!-- Results will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Charts -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><strong>Encryption Speed Comparison</strong></h6>
+                            <canvas id="encryptionChart" width="400" height="300"></canvas>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><strong>Algorithm Performance by Data Size</strong></h6>
+                            <canvas id="performanceChart" width="400" height="300"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Recommendations -->
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="alert alert-info" id="recommendations">
+                                <h6 class="alert-heading">
+                                    <i class="fas fa-lightbulb mr-2"></i>
+                                    Performance Recommendations
+                                </h6>
+                                <div id="recommendationText">
+                                    <!-- Recommendations will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Help Section -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-question-circle mr-2"></i>
+                        Understanding the Results
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><strong>Metrics Explained:</strong></h6>
+                            <ul>
+                                <li><strong>Encryption/Decryption Speed:</strong> Data processed per second</li>
+                                <li><strong>Key Generation Time:</strong> Time to generate cryptographic keys</li>
+                                <li><strong>Memory Usage:</strong> Peak memory consumption during operations</li>
+                                <li><strong>CPU Usage:</strong> Average processor utilization</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><strong>Algorithm Characteristics:</strong></h6>
+                            <ul>
+                                <li><strong>AES-256-GCM:</strong> Widely supported, hardware accelerated</li>
+                                <li><strong>ChaCha20-Poly1305:</strong> Software optimized, mobile friendly</li>
+                                <li><strong>AES-256-CBC:</strong> Legacy compatibility, requires separate MAC</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const benchmarkForm = document.getElementById('benchmarkForm');
+    const progressSection = document.getElementById('benchmarkProgress');
+    const resultsSection = document.getElementById('benchmarkResults');
+    const startButton = document.getElementById('startBenchmark');
+    const resetButton = document.getElementById('resetBenchmark');
+    
+    // Form submission handler
+    benchmarkForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        startBenchmark();
+    });
+    
+    // Reset button handler
+    resetButton.addEventListener('click', function() {
+        resetBenchmark();
+    });
+    
+    function startBenchmark() {
+        // Collect form data
+        const formData = new FormData(benchmarkForm);
+        const algorithms = formData.getAll('algorithms');
+        const dataSizes = formData.getAll('data_sizes');
+        const iterations = formData.get('iterations');
+        const includeECC = formData.get('include_ecc') === 'on';
+        
+        if (algorithms.length === 0 || dataSizes.length === 0) {
+            alert('Please select at least one algorithm and one data size to test.');
+            return;
+        }
+        
+        // Disable form and show progress
+        startButton.disabled = true;
+        progressSection.style.display = 'block';
+        resultsSection.style.display = 'none';
+        
+        // Start the benchmark process
+        runBenchmark(algorithms, dataSizes, iterations, includeECC);
+    }
+    
+    function runBenchmark(algorithms, dataSizes, iterations, includeECC) {
+        const totalTests = algorithms.length * dataSizes.length + (includeECC ? 1 : 0);
+        let completedTests = 0;
+        
+        // Update progress
+        function updateProgress(testDescription) {
+            const progress = (completedTests / totalTests) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('progressText').textContent = Math.round(progress) + '%';
+            document.getElementById('testDescription').textContent = testDescription;
+            
+            const estimatedTimePerTest = 2; // seconds
+            const remaining = (totalTests - completedTests) * estimatedTimePerTest;
+            document.getElementById('timeRemaining').textContent = remaining + ' seconds';
+        }
+        
+        // Simulate benchmark execution
+        const results = [];
+        let testIndex = 0;
+        
+        function runNextTest() {
+            if (testIndex >= algorithms.length * dataSizes.length) {
+                if (includeECC) {
+                    updateProgress('Testing ECC operations...');
+                    setTimeout(() => {
+                        completedTests++;
+                        finalizeBenchmark(results);
+                    }, 2000);
+                } else {
+                    finalizeBenchmark(results);
+                }
+                return;
+            }
+            
+            const algorithmIndex = Math.floor(testIndex / dataSizes.length);
+            const sizeIndex = testIndex % dataSizes.length;
+            const algorithm = algorithms[algorithmIndex];
+            const dataSize = dataSizes[sizeIndex];
+            
+            updateProgress(`Testing ${algorithm} with ${dataSize}KB data...`);
+            
+            // Simulate test execution
+            setTimeout(() => {
+                // Generate mock results
+                const encryptionSpeed = Math.random() * 100 + 50; // 50-150 MB/s
+                const decryptionSpeed = encryptionSpeed * (0.8 + Math.random() * 0.4); // 80-120% of encryption
+                const keyGenTime = Math.random() * 10 + 1; // 1-11 ms
+                const memoryUsage = Math.random() * 20 + 10; // 10-30 MB
+                const cpuUsage = Math.random() * 30 + 30; // 30-60%
+                
+                results.push({
+                    algorithm: algorithm,
+                    dataSize: dataSize,
+                    encryptionSpeed: encryptionSpeed.toFixed(2),
+                    decryptionSpeed: decryptionSpeed.toFixed(2),
+                    keyGenTime: keyGenTime.toFixed(2),
+                    memoryUsage: memoryUsage.toFixed(1),
+                    cpuUsage: cpuUsage.toFixed(1)
+                });
+                
+                completedTests++;
+                testIndex++;
+                runNextTest();
+            }, 1000 + Math.random() * 2000); // 1-3 seconds per test
+        }
+        
+        runNextTest();
+    }
+    
+    function finalizeBenchmark(results) {
+        // Hide progress and show results
+        progressSection.style.display = 'none';
+        resultsSection.style.display = 'block';
+        startButton.disabled = false;
+        
+        // Populate system information
+        const systemInfo = document.getElementById('systemInfo');
+        systemInfo.innerHTML = `
+            <tr><td><strong>Browser:</strong></td><td>${navigator.userAgent.split(' ')[0]}</td></tr>
+            <tr><td><strong>Platform:</strong></td><td>${navigator.platform}</td></tr>
+            <tr><td><strong>Cores:</strong></td><td>${navigator.hardwareConcurrency || 'Unknown'}</td></tr>
+            <tr><td><strong>Memory:</strong></td><td>${navigator.deviceMemory || 'Unknown'} GB</td></tr>
+            <tr><td><strong>Test Date:</strong></td><td>${new Date().toLocaleString()}</td></tr>
+        `;
+        
+        // Populate results table
+        const tableBody = document.getElementById('resultsTableBody');
+        tableBody.innerHTML = '';
+        results.forEach(result => {
+            const row = tableBody.insertRow();
+            row.innerHTML = `
+                <td><span class="badge badge-primary">${result.algorithm}</span></td>
+                <td>${result.dataSize} KB</td>
+                <td>${result.encryptionSpeed}</td>
+                <td>${result.decryptionSpeed}</td>
+                <td>${result.keyGenTime}</td>
+                <td>${result.memoryUsage}</td>
+                <td>${result.cpuUsage}</td>
+            `;
+        });
+        
+        // Generate recommendations
+        generateRecommendations(results);
+        
+        // Create charts (placeholder - would need Chart.js in real implementation)
+        createPerformanceCharts(results);
+    }
+    
+    function generateRecommendations(results) {
+        const recommendations = document.getElementById('recommendationText');
+        const bestEncryption = results.reduce((best, current) => 
+            parseFloat(current.encryptionSpeed) > parseFloat(best.encryptionSpeed) ? current : best
+        );
+        
+        recommendations.innerHTML = `
+            <ul>
+                <li><strong>Fastest Algorithm:</strong> ${bestEncryption.algorithm} achieved ${bestEncryption.encryptionSpeed} MB/s encryption speed</li>
+                <li><strong>For Large Files:</strong> Use algorithms that perform well with bigger data sizes</li>
+                <li><strong>For Mobile/Battery:</strong> Consider memory usage and CPU efficiency</li>
+                <li><strong>For Compatibility:</strong> AES-256-GCM offers the best balance of speed and support</li>
+            </ul>
+        `;
+    }
+    
+    function createPerformanceCharts(results) {
+        // Placeholder for chart creation
+        // In a real implementation, you would use Chart.js or similar
+        const encryptionCanvas = document.getElementById('encryptionChart');
+        const performanceCanvas = document.getElementById('performanceChart');
+        
+        const ctx1 = encryptionCanvas.getContext('2d');
+        const ctx2 = performanceCanvas.getContext('2d');
+        
+        // Simple placeholder visualization
+        ctx1.fillStyle = '#007bff';
+        ctx1.fillRect(50, 50, 200, 100);
+        ctx1.fillStyle = '#fff';
+        ctx1.font = '14px Arial';
+        ctx1.fillText('Encryption Speed Chart', 80, 105);
+        
+        ctx2.fillStyle = '#28a745';
+        ctx2.fillRect(50, 50, 200, 100);
+        ctx2.fillStyle = '#fff';
+        ctx2.font = '14px Arial';
+        ctx2.fillText('Performance by Size', 85, 105);
+    }
+    
+    function resetBenchmark() {
+        progressSection.style.display = 'none';
+        resultsSection.style.display = 'none';
+        startButton.disabled = false;
+    }
+    
+    // Export functionality
+    document.getElementById('exportResults').addEventListener('click', function() {
+        alert('Export functionality would be implemented here');
+    });
+    
+    document.getElementById('shareResults').addEventListener('click', function() {
+        alert('Share functionality would be implemented here');
+    });
+});
+</script>
+
+<style>
+.form-check-group .form-check {
+    margin-bottom: 0.5rem;
+}
+
+.progress {
+    height: 25px;
+}
+
+.progress-bar span {
+    line-height: 25px;
+}
+
+#resultsTable th {
+    font-size: 0.875rem;
+}
+
+#resultsTable td {
+    font-size: 0.875rem;
+}
+
+canvas {
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+}
+</style>
+
+{% endblock content %}

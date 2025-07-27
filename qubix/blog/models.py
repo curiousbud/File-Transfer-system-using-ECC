@@ -32,7 +32,7 @@ class Post(models.Model):
         return reverse('post-detail', kwargs={'pk': self.pk})
 
     def can_user_access(self, user):
-        """Check if a user can access this post based on visibility settings"""
+        """Check if a user can access this post based on visibility settings and specific shares"""
         if self.visibility == 'public':
             return True
         elif self.visibility == 'private':
@@ -43,6 +43,17 @@ class Post(models.Model):
             # Import here to avoid circular imports
             from users.models import Friendship
             return Friendship.are_friends(user, self.author)
+        
+        # Check for specific user shares
+        if self.shared_with_users.filter(shared_with=user).exists():
+            return True
+        
+        # Check for group shares
+        from users.models import UserGroup
+        user_groups = UserGroup.objects.filter(members=user, is_active=True)
+        if self.shared_with_groups.filter(shared_with_group__in=user_groups).exists():
+            return True
+        
         return False
 
 
@@ -266,3 +277,37 @@ class SecureFileAccess(models.Model):
         if self.file.is_expired():
             return False
         return True
+
+
+class PostShare(models.Model):
+    """
+    Model for tracking specific sharing of posts with individual users
+    """
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='shared_with_users')
+    shared_with = models.ForeignKey(User, on_delete=models.CASCADE, related_name='shared_posts')
+    shared_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts_shared_by_me')
+    shared_at = models.DateTimeField(auto_now_add=True)
+    can_reshare = models.BooleanField(default=False)
+    
+    class Meta:
+        unique_together = ('post', 'shared_with')
+    
+    def __str__(self):
+        return f'{self.post.title} shared with {self.shared_with.username}'
+
+
+class PostGroupShare(models.Model):
+    """
+    Model for tracking sharing of posts with groups
+    """
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='shared_with_groups')
+    shared_with_group = models.ForeignKey('users.UserGroup', on_delete=models.CASCADE, related_name='shared_posts')
+    shared_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts_shared_with_groups')
+    shared_at = models.DateTimeField(auto_now_add=True)
+    can_reshare = models.BooleanField(default=False)
+    
+    class Meta:
+        unique_together = ('post', 'shared_with_group')
+    
+    def __str__(self):
+        return f'{self.post.title} shared with group {self.shared_with_group.name}'

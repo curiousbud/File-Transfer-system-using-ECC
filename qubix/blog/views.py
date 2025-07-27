@@ -18,6 +18,10 @@ import operator
 from django.urls import reverse_lazy
 from django.contrib.staticfiles.views import serve
 import os
+import logging
+
+# Set up logger
+logger = logging.getLogger(__name__)
 from django.conf import settings
 
 from django.db.models import Q
@@ -32,18 +36,53 @@ except ImportError:
     CRYPTO_AVAILABLE = False
 
 
-@login_required
 def home(request):
     # Get all posts that the current user can access
-    all_posts = Post.objects.all()
+    all_posts = Post.objects.all().order_by('-date_posted')
     accessible_posts = []
     
     for post in all_posts:
-        if post.can_user_access(request.user):
-            accessible_posts.append(post)
+        if not request.user.is_authenticated:
+            # Show only public posts for anonymous users
+            if post.visibility == 'public':
+                accessible_posts.append(post)
+        else:
+            if post.can_user_access(request.user):
+                accessible_posts.append(post)
+    
+    # Get user statistics if authenticated
+    user_stats = {}
+    if request.user.is_authenticated:
+        from users.models import UserGroup, GroupMembership
+        
+        # Count secure files
+        user_stats['total_files'] = SecureFile.objects.filter(uploaded_by=request.user).count()
+        
+        # Count friends
+        user_stats['total_friends'] = Friendship.objects.filter(
+            Q(requester=request.user) | Q(addressee=request.user),
+            status='accepted'
+        ).count()
+        
+        # Count groups (owned + member of)
+        owned_groups = UserGroup.objects.filter(owner=request.user).count()
+        member_groups = GroupMembership.objects.filter(
+            user=request.user, 
+            is_active=True
+        ).count()
+        user_stats['total_groups'] = owned_groups + member_groups
+        
+        # Count recent posts (last 30 days)
+        from datetime import timedelta
+        recent_date = timezone.now() - timedelta(days=30)
+        user_stats['recent_posts'] = Post.objects.filter(
+            author=request.user,
+            date_posted__gte=recent_date
+        ).count()
     
     context = {
-        'posts': accessible_posts
+        'posts': accessible_posts[:12],  # Limit to 12 posts for home page
+        'user_stats': user_stats if request.user.is_authenticated else None,
     }
     return render(request, 'blog/home.html', context)
 
@@ -126,9 +165,88 @@ class PostCreateView(LoginRequiredMixin, CreateView):
     template_name = 'blog/post_form.html'
     fields = ['title', 'content', 'file', 'visibility']
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get user's friends for sharing options
+        from users.models import Friendship, UserGroup
+        friendships = Friendship.objects.filter(
+            Q(requester=self.request.user, status='accepted') | 
+            Q(addressee=self.request.user, status='accepted')
+        )
+        
+        friends = []
+        for friendship in friendships:
+            friend = friendship.addressee if friendship.requester == self.request.user else friendship.requester
+            friends.append(friend)
+        
+        # Get user's groups
+        user_groups = UserGroup.objects.filter(
+            Q(owner=self.request.user) | Q(members=self.request.user),
+            is_active=True
+        ).distinct()
+        
+        context.update({
+            'friends': friends,
+            'user_groups': user_groups,
+        })
+        return context
+
     def form_valid(self, form):
         form.instance.author = self.request.user
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        
+        # Handle specific sharing
+        self.handle_post_sharing(form.instance)
+        
+        return response
+    
+    def handle_post_sharing(self, post):
+        """Handle sharing the post with specific users and groups"""
+        from .models import PostShare, PostGroupShare
+        from users.models import UserGroup
+        from django.contrib.auth.models import User
+        
+        # Get sharing data from POST request
+        share_with_friends = self.request.POST.getlist('share_with_friends')
+        share_with_groups = self.request.POST.getlist('share_with_groups')
+        share_with_search_users = self.request.POST.getlist('share_with_search_users')
+        
+        # Share with specific friends
+        for friend_id in share_with_friends:
+            try:
+                friend = User.objects.get(id=friend_id)
+                PostShare.objects.get_or_create(
+                    post=post,
+                    shared_with=friend,
+                    shared_by=self.request.user
+                )
+            except User.DoesNotExist:
+                continue
+        
+        # Share with groups
+        for group_id in share_with_groups:
+            try:
+                group = UserGroup.objects.get(id=group_id)
+                PostGroupShare.objects.get_or_create(
+                    post=post,
+                    shared_with_group=group,
+                    shared_by=self.request.user
+                )
+            except UserGroup.DoesNotExist:
+                continue
+        
+        # Share with searched users
+        for user_id in share_with_search_users:
+            try:
+                user = User.objects.get(id=user_id)
+                PostShare.objects.get_or_create(
+                    post=post,
+                    shared_with=user,
+                    shared_by=self.request.user
+                )
+            except User.DoesNotExist:
+                continue
 
 
 class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
@@ -136,9 +254,95 @@ class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     template_name = 'blog/post_form.html'
     fields = ['title', 'content', 'file', 'visibility']
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get user's friends for sharing options
+        from users.models import Friendship, UserGroup
+        friendships = Friendship.objects.filter(
+            Q(requester=self.request.user, status='accepted') | 
+            Q(addressee=self.request.user, status='accepted')
+        )
+        
+        friends = []
+        for friendship in friendships:
+            friend = friendship.addressee if friendship.requester == self.request.user else friendship.requester
+            friends.append(friend)
+        
+        # Get user's groups
+        user_groups = UserGroup.objects.filter(
+            Q(owner=self.request.user) | Q(members=self.request.user),
+            is_active=True
+        ).distinct()
+        
+        context.update({
+            'friends': friends,
+            'user_groups': user_groups,
+        })
+        return context
+
     def form_valid(self, form):
         form.instance.author = self.request.user
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        
+        # Clear existing shares and recreate them
+        self.clear_existing_shares(form.instance)
+        self.handle_post_sharing(form.instance)
+        
+        return response
+    
+    def clear_existing_shares(self, post):
+        """Clear existing specific shares for this post"""
+        from .models import PostShare, PostGroupShare
+        PostShare.objects.filter(post=post).delete()
+        PostGroupShare.objects.filter(post=post).delete()
+    
+    def handle_post_sharing(self, post):
+        """Handle sharing the post with specific users and groups"""
+        from .models import PostShare, PostGroupShare
+        from users.models import UserGroup
+        from django.contrib.auth.models import User
+        
+        # Get sharing data from POST request
+        share_with_friends = self.request.POST.getlist('share_with_friends')
+        share_with_groups = self.request.POST.getlist('share_with_groups')
+        share_with_search_users = self.request.POST.getlist('share_with_search_users')
+        
+        # Share with specific friends
+        for friend_id in share_with_friends:
+            try:
+                friend = User.objects.get(id=friend_id)
+                PostShare.objects.get_or_create(
+                    post=post,
+                    shared_with=friend,
+                    shared_by=self.request.user
+                )
+            except User.DoesNotExist:
+                continue
+        
+        # Share with groups
+        for group_id in share_with_groups:
+            try:
+                group = UserGroup.objects.get(id=group_id)
+                PostGroupShare.objects.get_or_create(
+                    post=post,
+                    shared_with_group=group,
+                    shared_by=self.request.user
+                )
+            except UserGroup.DoesNotExist:
+                continue
+        
+        # Share with searched users
+        for user_id in share_with_search_users:
+            try:
+                user = User.objects.get(id=user_id)
+                PostShare.objects.get_or_create(
+                    post=post,
+                    shared_with=user,
+                    shared_by=self.request.user
+                )
+            except User.DoesNotExist:
+                continue
 
     def test_func(self):
         post = self.get_object()
@@ -227,9 +431,35 @@ def secure_file_upload(request):
                 messages.error(request, "You need to generate ECC keys first.")
                 return redirect('key-management')
             
-            # Get selected friends for sharing
-            selected_friends = request.POST.getlist('friends')
-            algorithm = request.POST.get('algorithm', 'AES-256-GCM')
+            # Get selected recipients (friends, groups, and searched users)
+            selected_friends = request.POST.getlist('share_with_friends')
+            selected_groups = request.POST.getlist('share_with_groups')
+            selected_search_users = request.POST.getlist('share_with_search_users')
+            algorithm = request.POST.get('encryption_algorithm', 'AES-256-GCM')
+            
+            # Collect all recipient users
+            recipients = set()
+            
+            # Add individual friends
+            if selected_friends:
+                friends_users = User.objects.filter(id__in=selected_friends)
+                recipients.update(friends_users)
+            
+            # Add group members
+            if selected_groups:
+                from users.models import UserGroup
+                groups = UserGroup.objects.filter(id__in=selected_groups, is_active=True)
+                for group in groups:
+                    group_members = group.get_members_with_keys()
+                    recipients.update(group_members)
+            
+            # Add searched users
+            if selected_search_users:
+                search_users = User.objects.filter(id__in=selected_search_users)
+                recipients.update(search_users)
+            
+            # Remove the current user from recipients (can't share with yourself)
+            recipients.discard(request.user)
             
             # Initialize crypto components
             file_handler = SecureFileHandler()
@@ -253,11 +483,10 @@ def secure_file_upload(request):
                 uploaded_by=request.user
             )
             
-            # Encrypt file for each selected friend
-            for friend_id in selected_friends:
+            # Encrypt file for each recipient
+            for recipient_user in recipients:
                 try:
-                    friend_user = User.objects.get(id=friend_id)
-                    friend_keypair = ECCKeyPair.objects.get(user=friend_user, is_active=True)
+                    recipient_keypair = ECCKeyPair.objects.get(user=recipient_user, is_active=True)
                     
                     # Get password for decrypting user's private key
                     password = request.POST.get('key_password')
@@ -267,21 +496,21 @@ def secure_file_upload(request):
                     
                     # Decrypt user's private key
                     user_private_key = user_keypair.get_decrypted_private_key(password)
-                    friend_public_key = friend_keypair.get_public_key()
+                    recipient_public_key = recipient_keypair.get_public_key()
                     
-                    # Encrypt file for this friend
+                    # Encrypt file for this recipient
                     if algorithm == 'ChaCha20-Poly1305':
                         encrypted_package = hybrid_encryption.encrypt_file_for_user_chacha20(
-                            file_data, friend_public_key, user_private_key, uploaded_file.name
+                            file_data, recipient_public_key, user_private_key, uploaded_file.name
                         )
                     else:  # AES-256-GCM
                         encrypted_package = hybrid_encryption.encrypt_file_for_user(
-                            file_data, friend_public_key, user_private_key, uploaded_file.name
+                            file_data, recipient_public_key, user_private_key, uploaded_file.name
                         )
                     
                     # Save encrypted file
                     secure_filename = file_handler.create_secure_filename(
-                        f"{secure_file.id}_{friend_user.id}_{uploaded_file.name}"
+                        f"{secure_file.id}_{recipient_user.id}_{uploaded_file.name}"
                     )
                     encrypted_file_path = file_handler.save_encrypted_file(
                         encrypted_package, secure_filename
@@ -289,15 +518,15 @@ def secure_file_upload(request):
                     
                     # Create access record
                     SecureFileAccess.objects.create(
-                        secure_file=secure_file,
-                        user=friend_user,
+                        file=secure_file,
+                        user=recipient_user,
                         encrypted_file_path=encrypted_file_path,
                         encryption_metadata=encrypted_package,
                         access_granted_by=request.user
                     )
                     
                 except Exception as e:
-                    messages.warning(request, f"Failed to encrypt file for {friend_user.username}: {str(e)}")
+                    messages.warning(request, f"Failed to encrypt file for {recipient_user.username}: {str(e)}")
             
             messages.success(request, f"File '{uploaded_file.name}' encrypted and shared successfully!")
             return redirect('secure-files-list')
@@ -308,14 +537,15 @@ def secure_file_upload(request):
     
     # GET request - show upload form
     # Get user's friends for sharing options
+    from users.models import UserGroup
     friendships = Friendship.objects.filter(
-        Q(user1=request.user, status='accepted') | 
-        Q(user2=request.user, status='accepted')
+        Q(requester=request.user, status='accepted') | 
+        Q(addressee=request.user, status='accepted')
     )
     
     friends = []
     for friendship in friendships:
-        friend = friendship.user2 if friendship.user1 == request.user else friendship.user1
+        friend = friendship.addressee if friendship.requester == request.user else friendship.requester
         # Check if friend has ECC keys
         try:
             ECCKeyPair.objects.get(user=friend, is_active=True)
@@ -323,8 +553,21 @@ def secure_file_upload(request):
         except ECCKeyPair.DoesNotExist:
             continue
     
+    # Get user's groups (both owned and member of)
+    user_groups = UserGroup.objects.filter(
+        Q(owner=request.user) | Q(members=request.user),
+        is_active=True
+    ).distinct().prefetch_related('members__ecc_keypair')
+    
+    # Filter groups to only include those with members who have ECC keys
+    valid_groups = []
+    for group in user_groups:
+        if group.get_members_with_keys().exists():
+            valid_groups.append(group)
+    
     context = {
         'friends': friends,
+        'user_groups': valid_groups,
         'supported_algorithms': ['AES-256-GCM', 'ChaCha20-Poly1305']
     }
     return render(request, 'blog/secure_file_upload.html', context)
@@ -333,21 +576,74 @@ def secure_file_upload(request):
 @login_required
 def secure_files_list(request):
     """
-    List user's secure files (uploaded and received)
+    List user's secure files (uploaded and received) with filtering and pagination
     """
     if not CRYPTO_AVAILABLE:
         messages.error(request, "Cryptographic features are not available.")
         return redirect('blog-home')
     
-    # Files uploaded by user
-    uploaded_files = SecureFile.objects.filter(uploaded_by=request.user)
+    # Get query parameters for filtering
+    search_query = request.GET.get('search', '')
+    algorithm_filter = request.GET.get('algorithm', '')
+    sort_by = request.GET.get('sort', '-created_at')
     
-    # Files shared with user
-    received_files = SecureFileAccess.objects.filter(user=request.user)
+    # Get file IDs that user has access to (either uploaded by them or shared with them)
+    uploaded_file_ids = SecureFile.objects.filter(uploaded_by=request.user).values_list('id', flat=True)
+    received_access = SecureFileAccess.objects.filter(user=request.user).values_list('file_id', flat=True)
+    
+    # Combine all file IDs the user has access to
+    all_file_ids = list(uploaded_file_ids) + list(received_access)
+    
+    # Get all files the user has access to
+    all_files = SecureFile.objects.filter(id__in=all_file_ids).distinct()
+    
+    # Apply filters
+    if search_query:
+        all_files = all_files.filter(original_filename__icontains=search_query)
+    
+    if algorithm_filter:
+        all_files = all_files.filter(encryption_algorithm=algorithm_filter)
+    
+    # Apply sorting - map filename to original_filename, created_at to uploaded_at
+    sort_mapping = {
+        'filename': 'original_filename',
+        '-filename': '-original_filename', 
+        'created_at': 'uploaded_at',
+        '-created_at': '-uploaded_at',
+        'file_size': 'original_size',
+        '-file_size': '-original_size'
+    }
+    
+    if sort_by in sort_mapping:
+        all_files = all_files.order_by(sort_mapping[sort_by])
+    else:
+        all_files = all_files.order_by('-uploaded_at')
+    
+    # Calculate statistics
+    total_files = all_files.count()
+    total_size = sum(f.original_size or 0 for f in all_files)
+    total_size_mb = round(total_size / (1024 * 1024), 2) if total_size > 0 else 0
+    
+    # Calculate shared files (files uploaded by user that have been shared)
+    uploaded_files = SecureFile.objects.filter(uploaded_by=request.user)
+    shared_files = uploaded_files.filter(securefileaccess__isnull=False).distinct().count()
+    
+    # Recent files (this week)
+    from datetime import datetime, timedelta
+    week_ago = timezone.now() - timedelta(days=7)
+    recent_files = all_files.filter(uploaded_at__gte=week_ago).count()
+    
+    # Files received through sharing
+    received_access = SecureFileAccess.objects.filter(user=request.user)
     
     context = {
-        'uploaded_files': uploaded_files,
-        'received_files': received_files
+        'files': all_files,
+        'total_files': total_files,
+        'total_size_mb': total_size_mb,
+        'shared_files': shared_files,
+        'recent_files': recent_files,
+        'uploaded_files': uploaded_files,  # Keep for backward compatibility
+        'received_files': received_access,  # Keep for backward compatibility
     }
     return render(request, 'blog/secure_files_list.html', context)
 
@@ -428,7 +724,7 @@ def secure_file_info(request, file_id):
             # Check if file is shared with user
             try:
                 file_access = SecureFileAccess.objects.get(
-                    secure_file=secure_file, 
+                    file=secure_file, 
                     user=request.user
                 )
             except SecureFileAccess.DoesNotExist:
@@ -439,7 +735,7 @@ def secure_file_info(request, file_id):
         # Get all access records for this file (if user is owner)
         access_records = []
         if secure_file.uploaded_by == request.user:
-            access_records = SecureFileAccess.objects.filter(secure_file=secure_file)
+            access_records = SecureFileAccess.objects.filter(file=secure_file)
         
         context = {
             'secure_file': secure_file,
@@ -451,6 +747,54 @@ def secure_file_info(request, file_id):
         
     except Exception as e:
         messages.error(request, f"Error accessing file information: {str(e)}")
+        return redirect('secure-files-list')
+
+
+@login_required
+def secure_file_delete(request, file_id):
+    """
+    Delete a secure file (only by owner)
+    """
+    try:
+        secure_file = get_object_or_404(SecureFile, id=file_id)
+        
+        # Check if user is the owner
+        if secure_file.uploaded_by != request.user:
+            raise Http404("You don't have permission to delete this file")
+        
+        if request.method == 'POST':
+            filename = secure_file.original_filename
+            
+            try:
+                # Delete the physical file if it exists
+                if secure_file.encrypted_file_path:
+                    file_path = secure_file.encrypted_file_path
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                
+                # Delete all access records
+                SecureFileAccess.objects.filter(file=secure_file).delete()
+                
+                # Delete the database record
+                secure_file.delete()
+                
+                messages.success(request, f"File '{filename}' has been deleted successfully.")
+                logger.info(f"User {request.user.username} deleted secure file: {filename}")
+                
+            except Exception as e:
+                messages.error(request, f"Error deleting file: {str(e)}")
+                logger.error(f"Error deleting file {filename} for user {request.user.username}: {str(e)}")
+            
+            return redirect('secure-files-list')
+        
+        # GET request - show confirmation
+        context = {
+            'secure_file': secure_file,
+        }
+        return render(request, 'blog/secure_file_delete_confirm.html', context)
+        
+    except Exception as e:
+        messages.error(request, f"Error accessing file: {str(e)}")
         return redirect('secure-files-list')
 
 
@@ -483,3 +827,535 @@ def encryption_benchmark(request):
     
     context = {'test_completed': False}
     return render(request, 'blog/encryption_benchmark.html', context)
+
+
+# Phase 5 Enhanced Features: Batch Operations
+
+@login_required
+def batch_file_upload(request):
+    """
+    Upload and encrypt multiple files in batch
+    """
+    if not CRYPTO_AVAILABLE:
+        messages.error(request, "Cryptographic features are not available.")
+        return redirect('blog-home')
+    
+    if request.method == 'POST':
+        try:
+            from crypto.batch_operations import BatchFileProcessor
+            
+            # Get uploaded files
+            uploaded_files = request.FILES.getlist('batch_files')
+            if not uploaded_files:
+                messages.error(request, "No files selected for batch upload.")
+                return redirect('batch-file-upload')
+            
+            # Check file count limit
+            if len(uploaded_files) > 10:  # Configurable limit
+                messages.error(request, "Maximum 10 files allowed per batch operation.")
+                return redirect('batch-file-upload')
+            
+            # Get selected recipients (friends, groups, and searched users)
+            selected_friends = request.POST.getlist('friends')
+            selected_groups = request.POST.getlist('groups')
+            selected_search_users = request.POST.getlist('search_users')
+            algorithm = request.POST.get('algorithm', 'AES-256-GCM')
+            password = request.POST.get('key_password')
+            
+            if not password:
+                messages.error(request, "Key password is required for batch encryption.")
+                return redirect('batch-file-upload')
+            
+            # Collect all recipient users
+            recipients = set()
+            
+            # Add individual friends
+            if selected_friends:
+                friends_users = User.objects.filter(id__in=selected_friends)
+                recipients.update(friends_users)
+            
+            # Add group members
+            if selected_groups:
+                from users.models import UserGroup
+                groups = UserGroup.objects.filter(id__in=selected_groups, is_active=True)
+                for group in groups:
+                    group_members = group.get_members_with_keys()
+                    recipients.update(group_members)
+            
+            # Add searched users
+            if selected_search_users:
+                search_users = User.objects.filter(id__in=selected_search_users)
+                recipients.update(search_users)
+            
+            # Remove the current user from recipients (can't share with yourself)
+            recipients.discard(request.user)
+            
+            if not recipients:
+                messages.error(request, "Please select at least one valid recipient.")
+                return redirect('batch-file-upload')
+            
+            # Convert back to list for compatibility
+            recipients = list(recipients)
+            
+            # Prepare file list
+            file_list = []
+            total_size = 0
+            for uploaded_file in uploaded_files:
+                file_data = uploaded_file.read()
+                file_size = len(file_data)
+                total_size += file_size
+                
+                # Check individual file size (100MB limit)
+                if file_size > 100 * 1024 * 1024:
+                    messages.error(request, f"File '{uploaded_file.name}' exceeds 100MB limit.")
+                    return redirect('batch-file-upload')
+                
+                file_list.append({
+                    'data': file_data,
+                    'filename': uploaded_file.name,
+                    'size': file_size
+                })
+            
+            # Check total batch size (500MB limit)
+            if total_size > 500 * 1024 * 1024:
+                messages.error(request, "Total batch size exceeds 500MB limit.")
+                return redirect('batch-file-upload')
+            
+            # Process batch upload
+            processor = BatchFileProcessor(max_workers=4)
+            
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                results = loop.run_until_complete(
+                    processor.batch_encrypt_files(
+                        file_list=file_list,
+                        sender_user=request.user,
+                        recipients=recipients,
+                        password=password,
+                        algorithm=algorithm
+                    )
+                )
+            finally:
+                loop.close()
+            
+            # Display results
+            if results['success_count'] > 0:
+                messages.success(
+                    request, 
+                    f"Batch upload completed! {results['success_count']}/{results['total_files']} "
+                    f"files encrypted successfully for {results['total_recipients']} recipients."
+                )
+            
+            if results['error_count'] > 0:
+                for error in results['errors'][:3]:  # Show first 3 errors
+                    messages.warning(request, f"Error: {error}")
+                
+                if len(results['errors']) > 3:
+                    messages.warning(request, f"...and {len(results['errors']) - 3} more errors.")
+            
+            return redirect('secure-files-list')
+            
+        except Exception as e:
+            messages.error(request, f"Batch upload failed: {str(e)}")
+            return redirect('batch-file-upload')
+    
+    # GET request - show batch upload form
+    # Get user's friends for sharing options
+    from users.models import Friendship, UserGroup
+    friendships = Friendship.objects.filter(
+        Q(requester=request.user, status='accepted') | 
+        Q(addressee=request.user, status='accepted')
+    )
+    
+    friends = []
+    for friendship in friendships:
+        friend = friendship.addressee if friendship.requester == request.user else friendship.requester
+        # Check if friend has ECC keys
+        try:
+            ECCKeyPair.objects.get(user=friend, is_active=True)
+            friends.append(friend)
+        except ECCKeyPair.DoesNotExist:
+            continue
+    
+    # Get user's groups (both owned and member of)
+    user_groups = UserGroup.objects.filter(
+        Q(owner=request.user) | Q(members=request.user),
+        is_active=True
+    ).distinct().prefetch_related('members__ecc_keypair')
+    
+    # Filter groups to only include those with members who have ECC keys
+    valid_groups = []
+    for group in user_groups:
+        if group.get_members_with_keys().exists():
+            valid_groups.append(group)
+    
+    config_data = {
+        'max_files_per_batch': 10,
+        'max_file_size_mb': 100,
+        'max_batch_size_mb': 500
+    }
+    
+    context = {
+        'friends': friends,
+        'user_groups': valid_groups,
+        'supported_algorithms': ['AES-256-GCM', 'ChaCha20-Poly1305'],
+        'max_files_per_batch': config_data['max_files_per_batch'],
+        'max_file_size_mb': config_data['max_file_size_mb'],
+        'max_batch_size_mb': config_data['max_batch_size_mb'],
+        'config_json': config_data
+    }
+    return render(request, 'blog/batch_file_upload.html', context)
+
+
+@login_required
+def batch_file_download(request):
+    """
+    Download and decrypt multiple files in batch
+    """
+    if not CRYPTO_AVAILABLE:
+        messages.error(request, "Cryptographic features are not available.")
+        return redirect('blog-home')
+    
+    if request.method == 'POST':
+        try:
+            from crypto.batch_operations import BatchFileProcessor
+            import zipfile
+            import io
+            
+            # Get selected file access IDs
+            file_access_ids = request.POST.getlist('file_access_ids')
+            password = request.POST.get('key_password')
+            
+            if not file_access_ids:
+                messages.error(request, "No files selected for batch download.")
+                return redirect('secure-files-list')
+            
+            if not password:
+                messages.error(request, "Key password is required for batch decryption.")
+                return redirect('secure-files-list')
+            
+            # Limit batch size
+            if len(file_access_ids) > 20:
+                messages.error(request, "Maximum 20 files allowed per batch download.")
+                return redirect('secure-files-list')
+            
+            # Process batch download
+            processor = BatchFileProcessor(max_workers=4)
+            
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                results = loop.run_until_complete(
+                    processor.batch_decrypt_files(
+                        file_access_ids=[int(id) for id in file_access_ids],
+                        user=request.user,
+                        password=password
+                    )
+                )
+            finally:
+                loop.close()
+            
+            # Create ZIP file with decrypted files
+            if results['success_count'] > 0:
+                zip_buffer = io.BytesIO()
+                
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    for file_result in results['files']:
+                        if file_result['status'] == 'success':
+                            zip_file.writestr(file_result['filename'], file_result['data'])
+                
+                zip_buffer.seek(0)
+                
+                # Serve ZIP file
+                response = HttpResponse(
+                    zip_buffer.getvalue(),
+                    content_type='application/zip'
+                )
+                response['Content-Disposition'] = f'attachment; filename="qubix_batch_download_{timezone.now().strftime("%Y%m%d_%H%M%S")}.zip"'
+                
+                messages.success(
+                    request,
+                    f"Batch download completed! {results['success_count']}/{results['total_files']} files decrypted successfully."
+                )
+                
+                return response
+            else:
+                messages.error(request, "No files could be decrypted successfully.")
+                return redirect('secure-files-list')
+            
+        except Exception as e:
+            messages.error(request, f"Batch download failed: {str(e)}")
+            return redirect('secure-files-list')
+    
+    # GET request - show file selection for batch download
+    received_files = SecureFileAccess.objects.filter(user=request.user).select_related('file')
+    
+    context = {
+        'received_files': received_files,
+        'max_batch_size': 20
+    }
+    return render(request, 'blog/batch_file_download.html', context)
+
+
+@login_required  
+def batch_operation_status(request):
+    """
+    Show status and statistics for batch operations
+    """
+    try:
+        from crypto.batch_operations import BatchFileProcessor
+        
+        processor = BatchFileProcessor()
+        stats = processor.get_batch_processing_stats()
+        
+        # Get user's recent batch operations (from database logs if implemented)
+        recent_uploads = SecureFile.objects.filter(
+            uploaded_by=request.user
+        ).order_by('-uploaded_at')[:10]
+        
+        recent_downloads = SecureFileAccess.objects.filter(
+            user=request.user,
+            last_accessed_at__isnull=False
+        ).order_by('-last_accessed_at')[:10]
+        
+        context = {
+            'processor_stats': stats,
+            'recent_uploads': recent_uploads,
+            'recent_downloads': recent_downloads,
+            'user_file_count': SecureFile.objects.filter(uploaded_by=request.user).count(),
+            'user_access_count': SecureFileAccess.objects.filter(user=request.user).count()
+        }
+        return render(request, 'blog/batch_operation_status.html', context)
+        
+    except Exception as e:
+        messages.error(request, f"Error loading batch operation status: {str(e)}")
+        return redirect('blog-home')
+
+
+@login_required 
+def batch_upload(request):
+    """Batch file upload with multiple recipients"""
+    if not CRYPTO_AVAILABLE:
+        messages.error(request, "Cryptographic features are not available.")
+        return redirect('blog-home')
+    
+    # Get user's friends with active ECC keys
+    friends = []
+    try:
+        from django.contrib.auth.models import User
+        from users.models import ECCKeyPair
+        
+        # Get all users with active ECC keys who are friends
+        potential_friends = User.objects.exclude(id=request.user.id)
+        for user in potential_friends:
+            try:
+                ecc_keypair = ECCKeyPair.objects.get(user=user, is_active=True)
+                friends.append(user)
+            except ECCKeyPair.DoesNotExist:
+                continue
+                
+    except Exception as e:
+        logger.error(f"Error loading friends list: {e}")
+    
+    if request.method == 'POST':
+        try:
+            # Import batch operations
+            from crypto.batch_operations import BatchOperations
+            
+            # Get form data
+            files = request.FILES.getlist('batch_files')
+            friend_ids = request.POST.getlist('friends')
+            algorithm = request.POST.get('algorithm', 'AES-256-GCM')
+            key_password = request.POST.get('key_password')
+            
+            if not files:
+                messages.error(request, "No files selected for upload.")
+                return redirect('batch-upload')
+            
+            if not friend_ids:
+                messages.error(request, "Please select at least one friend to share with.")
+                return redirect('batch-upload')
+            
+            # Get recipient users
+            recipients = User.objects.filter(id__in=friend_ids)
+            
+            # Perform batch upload
+            batch_ops = BatchOperations()
+            result = batch_ops.batch_encrypt_files(
+                files=files,
+                sender=request.user,
+                recipients=list(recipients),
+                key_password=key_password,
+                algorithm=algorithm
+            )
+            
+            if result['success']:
+                messages.success(request, 
+                    f"Successfully uploaded {result['processed_count']} files. "
+                    f"Shared with {len(recipients)} recipients.")
+                return redirect('secure-files-list')
+            else:
+                messages.error(request, f"Batch upload failed: {result['error']}")
+                
+        except Exception as e:
+            logger.error(f"Batch upload error: {e}")
+            messages.error(request, f"Upload failed: {str(e)}")
+    
+    # Configuration for JavaScript
+    config_json = {
+        'max_file_size_mb': 50,
+        'max_files_per_batch': 10,
+        'max_batch_size_mb': 200
+    }
+    
+    context = {
+        'friends': friends,
+        'supported_algorithms': ['AES-256-GCM', 'ChaCha20-Poly1305'],
+        'max_file_size_mb': config_json['max_file_size_mb'],
+        'max_files_per_batch': config_json['max_files_per_batch'], 
+        'max_batch_size_mb': config_json['max_batch_size_mb'],
+        'config_json': config_json
+    }
+    
+    return render(request, 'blog/batch_file_upload.html', context)
+
+
+@login_required
+def batch_download(request):
+    """Batch file download interface"""
+    if not CRYPTO_AVAILABLE:
+        messages.error(request, "Cryptographic features are not available.")
+        return redirect('blog-home')
+    
+    try:
+        # Get user's accessible files
+        user_files = SecureFile.objects.filter(uploaded_by=request.user)
+        shared_files = SecureFile.objects.filter(
+            securefileaccess__user=request.user
+        ).exclude(uploaded_by=request.user)
+        
+        all_files = list(user_files) + list(shared_files)
+        
+        if request.method == 'POST':
+            # Process batch download
+            selected_file_ids = request.POST.getlist('selected_files')
+            key_password = request.POST.get('key_password')
+            
+            if not selected_file_ids:
+                messages.error(request, "No files selected for download.")
+                return redirect('batch-download')
+            
+            # Import batch operations
+            from crypto.batch_operations import BatchOperations
+            
+            # Get selected files
+            selected_files = SecureFile.objects.filter(
+                id__in=selected_file_ids
+            )
+            
+            # Perform batch download
+            batch_ops = BatchOperations()
+            result = batch_ops.batch_decrypt_files(
+                files=list(selected_files),
+                user=request.user,
+                key_password=key_password
+            )
+            
+            if result['success']:
+                # Create ZIP file response
+                import zipfile
+                import io
+                from django.http import HttpResponse
+                
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    for file_data in result['decrypted_files']:
+                        zip_file.writestr(file_data['filename'], file_data['content'])
+                
+                response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
+                response['Content-Disposition'] = 'attachment; filename="batch_download.zip"'
+                return response
+            else:
+                messages.error(request, f"Batch download failed: {result['error']}")
+        
+        context = {
+            'files': all_files,
+            'max_batch_size': 100  # MB
+        }
+        
+        return render(request, 'blog/batch_file_download.html', context)
+        
+    except Exception as e:
+        logger.error(f"Batch download error: {e}")
+        messages.error(request, f"Error loading files: {str(e)}")
+        return redirect('blog-home')
+
+
+# API Views
+
+@login_required
+def search_users_api(request):
+    """
+    API endpoint to search for users with ECC keys for file sharing
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST requests allowed'}, status=405)
+    
+    try:
+        import json
+        from django.http import JsonResponse
+        
+        data = json.loads(request.body)
+        search_term = data.get('search_term', '').strip()
+        
+        if len(search_term) < 2:
+            return JsonResponse({'users': []})
+        
+        # Search for users with ECC keys, excluding current user and existing friends
+        from users.models import Friendship
+        
+        # Get existing friend IDs to exclude them
+        friendships = Friendship.objects.filter(
+            Q(requester=request.user, status='accepted') | 
+            Q(addressee=request.user, status='accepted')
+        )
+        
+        friend_ids = set()
+        for friendship in friendships:
+            if friendship.requester == request.user:
+                friend_ids.add(friendship.addressee.id)
+            else:
+                friend_ids.add(friendship.requester.id)
+        
+        # Search users by username or name, exclude current user and friends
+        users = User.objects.filter(
+            Q(username__icontains=search_term) |
+            Q(first_name__icontains=search_term) |
+            Q(last_name__icontains=search_term)
+        ).exclude(
+            id=request.user.id
+        ).exclude(
+            id__in=friend_ids
+        ).filter(
+            ecc_keypair__is_active=True
+        ).distinct()[:20]  # Limit to 20 results
+        
+        # Format users for JSON response
+        users_data = []
+        for user in users:
+            full_name = f"{user.first_name} {user.last_name}".strip()
+            users_data.append({
+                'id': user.id,
+                'username': user.username,
+                'full_name': full_name if full_name else None,
+            })
+        
+        return JsonResponse({'users': users_data})
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
