@@ -290,7 +290,15 @@ def rotate_keys(request):
 def key_info_api(request):
     """API endpoint for key information"""
     if not CRYPTO_AVAILABLE:
-        return JsonResponse({'error': 'Cryptographic features not available'}, status=500)
+        return JsonResponse({
+            'error': 'Cryptographic features not available',
+            'available': False
+        }, status=503)
+    
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'error': 'Authentication required'
+        }, status=401)
     
     try:
         ecc_keypair = ECCKeyPair.objects.get(user=request.user)
@@ -301,10 +309,19 @@ def key_info_api(request):
             if hasattr(value, 'isoformat'):
                 key_info[key] = value.isoformat()
         
-        return JsonResponse(key_info)
+        return JsonResponse({
+            'success': True,
+            'user': request.user.username,
+            'key_info': key_info
+        })
         
     except ECCKeyPair.DoesNotExist:
-        return JsonResponse({'error': 'No key pair found'}, status=404)
+        return JsonResponse({
+            'error': 'No key pair found',
+            'message': 'User has not generated an ECC key pair yet',
+            'user': request.user.username,
+            'suggestion': 'Generate a key pair first at /keys/generate/'
+        }, status=200)  # Changed from 404 to 200 for better UX
 
 
 @login_required

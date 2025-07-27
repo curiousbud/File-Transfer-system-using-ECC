@@ -9,6 +9,8 @@
           <p class="text-secondary">{{ user.email }}</p>
         </div>
       </div>
+
+      <!-- Profile Update Form -->
       <form method="POST" enctype="multipart/form-data">
           {% csrf_token %}
           <fieldset class="form-group">
@@ -21,4 +23,78 @@
           </div>
       </form>
     </div>
+
+    <!-- ECC Key Management Section -->
+    {% if crypto_available %}
+    <div class="content-section">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3><i class="fas fa-key text-primary"></i> Security & Keys</h3>
+            <a href="{% url 'key-management' %}" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-cogs"></i> Advanced Management
+            </a>
+        </div>
+
+        {% if ecc_key_info %}
+            <!-- Current Key Status -->
+            <div class="card mb-3 key-status-active">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h6 class="card-title mb-1">
+                                <i class="fas fa-shield-alt text-success"></i> ECC Key Active
+                            </h6>
+                            <p class="text-muted mb-0">
+                                <strong>{{ ecc_key_info.curve }}</strong> curve • 
+                                Created {{ ecc_key_info.created|date:"M d, Y" }} • 
+                                Version {{ ecc_key_info.version }}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-md-right">
+                            <span class="badge badge-success badge-lg">
+                                <i class="fas fa-check"></i> Secure
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row">
+                <div class="col-md-6">
+                    <a href="{% url 'rotate-keys' %}" class="btn btn-warning btn-block">
+                        <i class="fas fa-sync-alt"></i> Rotate Keys
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a href="{% url 'key-info-api' %}" target="_blank" class="btn btn-info btn-block">
+                        <i class="fas fa-code"></i> Key Info API
+                    </a>
+                </div>
+            </div>
+        {% else %}
+            <!-- No Keys - Setup Prompt -->
+            <div class="card border-warning key-status-warning">
+                <div class="card-body">
+                    <div class="text-center">
+                        <i class="fas fa-exclamation-triangle text-warning fa-2x mb-3"></i>
+                        <h5>No ECC Keys Found</h5>
+                        <p class="text-muted">Generate your first ECC key pair to enable secure file encryption.</p>
+                        <a href="{% url 'generate-keys' %}" class="btn btn-primary">
+                            <i class="fas fa-key"></i> Generate Your First Key Pair
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    {% else %}
+        <!-- Crypto Not Available -->
+        <div class="content-section">
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Cryptographic features are not available.</strong>
+                Please contact your administrator.
+            </div>
+        </div>
+    {% endif %}
 {% endblock content %}

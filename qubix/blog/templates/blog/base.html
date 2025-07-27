@@ -44,25 +44,6 @@
                     <a href="{% url 'user-posts' user %}" class="btn text-white m-2"><i class="fas fa-user-shield"></i> My Post</a>
                     <a href="{% url 'post-create' %} " class="btn text-white m-2"><i class="fas fa-user-edit"></i> New Post</a>
                     
-                    <!-- ECC Keys dropdown -->
-                    <div class="btn-group m-2" role="group">
-                        <button id="keysDropdown" type="button" class="btn text-white dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <i class="fas fa-key"></i> ECC Keys
-                        </button>
-                        <div class="dropdown-menu" aria-labelledby="keysDropdown">
-                            <a class="dropdown-item" href="{% url 'key-management' %}">
-                                <i class="fas fa-cogs"></i> Key Management
-                            </a>
-                            <a class="dropdown-item" href="{% url 'generate-keys' %}">
-                                <i class="fas fa-plus"></i> Generate Keys
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="{% url 'key-info-api' %}" target="_blank">
-                                <i class="fas fa-info-circle"></i> Key Information API
-                            </a>
-                        </div>
-                    </div>
-                    
                     <!-- Friends dropdown -->
                     <div class="btn-group m-2" role="group">
                         <button id="friendsDropdown" type="button" class="btn text-white dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">

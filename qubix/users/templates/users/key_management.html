@@ -21,36 +21,46 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <p><strong>Curve:</strong> <span class="badge badge-info">{{ key_info.curve }}</span></p>
-                                <p><strong>Version:</strong> {{ key_info.version }}</p>
-                                <p><strong>Created:</strong> {{ key_info.created|date:"M d, Y H:i" }}</p>
-                                <p><strong>Status:</strong> 
-                                    {% if key_info.is_active %}
-                                        <span class="badge badge-success">Active</span>
-                                    {% else %}
-                                        <span class="badge badge-warning">Inactive</span>
-                                    {% endif %}
-                                </p>
+                                <div class="mb-3 key-info-section">
+                                    <h6 class="text-primary mb-1">Curve Type</h6>
+                                    <span class="badge badge-info badge-lg">{{ key_info.curve }}</span>
+                                </div>
+                                <div class="mb-3 key-info-section">
+                                    <h6 class="text-primary mb-1">Version</h6>
+                                    <span class="text-muted">{{ key_info.version }}</span>
+                                </div>
+                                <div class="mb-3 key-info-section">
+                                    <h6 class="text-primary mb-1">Created</h6>
+                                    <span class="text-muted">{{ key_info.created|date:"M d, Y H:i" }}</span>
+                                </div>
                             </div>
                             <div class="col-md-6">
-                                <p><strong>Last Used:</strong> 
+                                <div class="mb-3 key-info-section">
+                                    <h6 class="text-primary mb-1">Status</h6>
+                                    {% if key_info.is_active %}
+                                        <span class="badge badge-success badge-lg">
+                                            <i class="fas fa-check"></i> Active
+                                        </span>
+                                    {% else %}
+                                        <span class="badge badge-warning badge-lg">
+                                            <i class="fas fa-pause"></i> Inactive
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                {% if key_info.expires_at %}
+                                <div class="mb-3 key-info-section">
+                                    <h6 class="text-primary mb-1">Expires</h6>
+                                    <span class="text-muted">{{ key_info.expires_at|date:"M d, Y H:i" }}</span>
+                                </div>
+                                {% endif %}
+                                <div class="mb-3 key-info-section">
+                                    <h6 class="text-primary mb-1">Last Used</h6>
                                     {% if key_info.last_used %}
-                                        {{ key_info.last_used|date:"M d, Y H:i" }}
+                                        <span class="text-muted">{{ key_info.last_used|date:"M d, Y H:i" }}</span>
                                     {% else %}
                                         <span class="text-muted">Never</span>
                                     {% endif %}
-                                </p>
-                                <p><strong>Use Count:</strong> {{ key_info.use_count }}</p>
-                                <p><strong>Rotation Status:</strong> 
-                                    {% if key_info.rotation_due %}
-                                        <span class="badge badge-danger">Rotation Due</span>
-                                    {% else %}
-                                        <span class="badge badge-success">Current</span>
-                                    {% endif %}
-                                </p>
-                                {% if key_info.days_until_rotation %}
-                                    <p><strong>Days Until Rotation:</strong> {{ key_info.days_until_rotation }}</p>
-                                {% endif %}
+                                </div>
                             </div>
                         </div>
                         
@@ -161,32 +171,46 @@
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
+                        <table class="table table-hover">
+                            <thead class="thead-light">
                                 <tr>
-                                    <th>Curve</th>
-                                    <th>Security Level</th>
-                                    <th>Description</th>
-                                    <th>Recommended</th>
+                                    <th scope="col">Curve</th>
+                                    <th scope="col">Security Level</th>
+                                    <th scope="col">Description</th>
+                                    <th scope="col">Recommended</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for curve in available_curves %}
-                                    <tr>
-                                        <td><code>{{ curve.name }}</code></td>
-                                        <td>{{ curve.security_level }}-bit</td>
-                                        <td>{{ curve.description }}</td>
+                                    <tr {% if curve.recommended %}class="table-success"{% endif %}>
+                                        <td>
+                                            <code class="text-primary">{{ curve.name }}</code>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-secondary">{{ curve.security_level }}-bit</span>
+                                        </td>
+                                        <td class="text-muted">{{ curve.description }}</td>
                                         <td>
                                             {% if curve.recommended %}
-                                                <span class="badge badge-success">Yes</span>
+                                                <span class="badge badge-success">
+                                                    <i class="fas fa-check"></i> Yes
+                                                </span>
                                             {% else %}
-                                                <span class="badge badge-secondary">No</span>
+                                                <span class="badge badge-light text-muted">
+                                                    <i class="fas fa-minus"></i> No
+                                                </span>
                                             {% endif %}
                                         </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i> 
+                            Recommended curves are highlighted in green and provide the best balance of security and performance.
+                        </small>
                     </div>
                 </div>
             </div>
@@ -232,25 +256,58 @@
 
             <!-- Security Information -->
             <div class="card">
-                <div class="card-header bg-dark text-white">
+                <div class="card-header bg-primary text-white">
                     <h5><i class="fas fa-shield-alt"></i> Security Information</h5>
                 </div>
-                <div class="card-body">
-                    <h6>Key Security Best Practices:</h6>
-                    <ul>
-                        <li><strong>Strong Passwords:</strong> Use a unique, complex password for key encryption</li>
-                        <li><strong>Regular Rotation:</strong> Rotate keys every 90 days or when recommended</li>
-                        <li><strong>Secure Storage:</strong> Never share your key password with anyone</li>
-                        <li><strong>Backup:</strong> Keep secure backups of your encrypted keys</li>
-                    </ul>
-                    
-                    <h6>ECC Advantages:</h6>
-                    <ul>
-                        <li><strong>Smaller Keys:</strong> Equivalent security with smaller key sizes</li>
-                        <li><strong>Faster Operations:</strong> Quicker encryption and decryption</li>
-                        <li><strong>Forward Secrecy:</strong> Enhanced security for future communications</li>
-                        <li><strong>Government Approved:</strong> NIST-approved curves for official use</li>
-                    </ul>
+                <div class="card-body security-info-section">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-4">
+                                <h6 class="text-primary"><i class="fas fa-lock"></i> Key Security Best Practices:</h6>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item border-0 px-0">
+                                        <strong class="text-success">Strong Passwords:</strong> 
+                                        <span class="text-muted">Use a unique, complex password for key encryption</span>
+                                    </li>
+                                    <li class="list-group-item border-0 px-0">
+                                        <strong class="text-warning">Regular Rotation:</strong> 
+                                        <span class="text-muted">Rotate keys every 90 days or when recommended</span>
+                                    </li>
+                                    <li class="list-group-item border-0 px-0">
+                                        <strong class="text-info">Secure Storage:</strong> 
+                                        <span class="text-muted">Never share your key password with anyone</span>
+                                    </li>
+                                    <li class="list-group-item border-0 px-0">
+                                        <strong class="text-secondary">Backup:</strong> 
+                                        <span class="text-muted">Keep secure backups of your encrypted keys</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-4">
+                                <h6 class="text-primary"><i class="fas fa-chart-line"></i> ECC Advantages:</h6>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item border-0 px-0">
+                                        <strong class="text-success">Smaller Keys:</strong> 
+                                        <span class="text-muted">Equivalent security with smaller key sizes</span>
+                                    </li>
+                                    <li class="list-group-item border-0 px-0">
+                                        <strong class="text-info">Faster Operations:</strong> 
+                                        <span class="text-muted">Quicker encryption and decryption</span>
+                                    </li>
+                                    <li class="list-group-item border-0 px-0">
+                                        <strong class="text-warning">Forward Secrecy:</strong> 
+                                        <span class="text-muted">Enhanced security for future communications</span>
+                                    </li>
+                                    <li class="list-group-item border-0 px-0">
+                                        <strong class="text-primary">Government Approved:</strong> 
+                                        <span class="text-muted">NIST-approved curves for official use</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         {% endif %}
