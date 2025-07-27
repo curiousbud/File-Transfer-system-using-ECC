@@ -1,38 +1,364 @@
 {% extends "blog/base.html" %}
+{% load blog_extras %}
+{% block title %}{{ view.kwargs.username }}'s Feed - Qubix{% endblock title %}
+
 {% block content %}
-    <h1 class="mb-3">Posts by {{ view.kwargs.username }} ({{ page_obj.paginator.count }})</h1>
-    {% for post in posts %}
-        <article class="media content-section">
-          <img class="rounded-circle article-img" src="{{ post.author.profile.image.url }}">
-          <div class="media-body">
-            <div class="article-metadata">
-              <a class="mr-2" href="{% url 'user-posts' post.author.username %}">{{ post.author }}</a>
-              <small class="text-muted">{{ post.date_posted|date:"F d, Y" }}</small>
+<div class="container-fluid mt-4">
+    <!-- User Profile Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-2 text-center">
+                            {% if posts %}
+                                <img src="{{ posts.0.author.profile.image.url }}" 
+                                     alt="{{ view.kwargs.username }}" 
+                                     class="rounded-circle border border-primary" 
+                                     width="80" height="80">
+                            {% else %}
+                                <div class="rounded-circle border border-primary bg-secondary d-flex align-items-center justify-content-center" 
+                                     style="width: 80px; height: 80px;">
+                                    <span class="text-white h3">{{ view.kwargs.username|first|upper }}</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <h2 class="mb-2">
+                                <i class="fas fa-user mr-2 text-primary"></i>
+                                {{ view.kwargs.username }}'s Feed
+                            </h2>
+                            <p class="text-muted mb-1">
+                                <i class="fas fa-newspaper mr-1"></i>
+                                {{ page_obj.paginator.count }} post{{ page_obj.paginator.count|pluralize }}
+                            </p>
+                            {% if posts and posts.0.author.first_name or posts.0.author.last_name %}
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-id-card mr-1"></i>
+                                {{ posts.0.author.first_name }} {{ posts.0.author.last_name }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 text-right">
+                            {% if posts and user == posts.0.author %}
+                                <a href="{% url 'post-create' %}" class="btn btn-primary">
+                                    <i class="fas fa-plus mr-1"></i>
+                                    Create New Post
+                                </a>
+                                <a href="{% url 'profile' %}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-cog mr-1"></i>
+                                    Profile
+                                </a>
+                            {% else %}
+                                <!-- Add friend/message buttons here if needed -->
+                                <a href="{% url 'blog-home' %}" class="btn btn-outline-primary">
+                                    <i class="fas fa-arrow-left mr-1"></i>
+                                    Back to Feed
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
             </div>
-            <h2><a class="article-title" href="{% url 'post-detail' post.id %}">{{ post.title }}</a></h2>
-            <p class="article-content">{{ post.content }}</p>
-          </div>
-        </article>
-    {% endfor %}
-    {% if is_paginated %}
+        </div>
+    </div>
 
-      {% if page_obj.has_previous %}
-        <a class="btn btn-outline-info mb-4" href="?page=1">First</a>
-        <a class="btn btn-outline-info mb-4" href="?page={{ page_obj.previous_page_number }}">Previous</a>
-      {% endif %}
+    <!-- Posts Controls -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cog mr-2"></i>
+                        Display Options
+                        <button class="btn btn-sm btn-outline-secondary float-right" type="button" data-toggle="collapse" data-target="#displayOptions">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </h6>
+                </div>
+                <div class="collapse show" id="displayOptions">
+                    <div class="card-body">
+                        <form method="get" id="displayForm">
+                            <div class="row">
+                                <!-- Posts per Page -->
+                                <div class="col-md-4 mb-3">
+                                    <label for="per_page" class="form-label">
+                                        <strong>Posts per Page</strong>
+                                    </label>
+                                    <select class="form-control" name="per_page" id="per_page" onchange="this.form.submit()">
+                                        {% for option in per_page_options %}
+                                            <option value="{{ option }}" {% if option == current_per_page %}selected{% endif %}>
+                                                {{ option }} posts
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- Sort By -->
+                                <div class="col-md-4 mb-3">
+                                    <label for="sort" class="form-label">
+                                        <strong>Sort By</strong>
+                                    </label>
+                                    <select class="form-control" name="sort" id="sort" onchange="this.form.submit()">
+                                        {% for value, label in sort_options.items %}
+                                            <option value="{{ value }}" {% if value == current_sort %}selected{% endif %}>
+                                                {{ label }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- Reset Options -->
+                                <div class="col-md-4 mb-3 d-flex align-items-end">
+                                    <a href="?" class="btn btn-outline-secondary btn-block">
+                                        <i class="fas fa-undo mr-1"></i>
+                                        Reset to Defaults
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Active Options Display -->
+                            {% if current_sort != '-date_posted' or current_per_page != 12 %}
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="alert alert-info py-2">
+                                        <strong>Current Settings:</strong>
+                                        {% if current_sort != '-date_posted' %}
+                                            <span class="badge badge-success mr-2">
+                                                Sort: {{ sort_options|lookup:current_sort }}
+                                            </span>
+                                        {% endif %}
+                                        {% if current_per_page != 12 %}
+                                            <span class="badge badge-warning mr-2">
+                                                Per Page: {{ current_per_page }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-      {% for num in page_obj.paginator.page_range %}
-        {% if page_obj.number == num %}
-          <a class="btn btn-info mb-4" href="?page={{ num }}">{{ num }}</a>
-        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-          <a class="btn btn-outline-info mb-4" href="?page={{ num }}">{{ num }}</a>
-        {% endif %}
-      {% endfor %}
+    <!-- Posts Grid -->
+    {% if posts %}
+    <div class="row">
+        {% for post in posts %}
+        <div class="col-lg-6 col-xl-4 mb-4">
+            <div class="card h-100 shadow-sm hover-shadow">
+                <!-- Post Header -->
+                <div class="card-header bg-white border-bottom">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <img src="{{ post.author.profile.image.url }}" 
+                                 alt="Avatar" 
+                                 class="rounded-circle mr-2" 
+                                 width="30" height="30">
+                            <div>
+                                <h6 class="mb-0 font-weight-bold">{{ post.author.username }}</h6>
+                                <small class="text-muted">{{ post.date_posted|date:"M d, Y" }}</small>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="badge badge-{{ post.visibility|yesno:'success,info,warning' }} px-2">
+                                {% if post.visibility == 'public' %}
+                                    <i class="fas fa-globe mr-1"></i>Public
+                                {% elif post.visibility == 'friends' %}
+                                    <i class="fas fa-user-friends mr-1"></i>Friends
+                                {% else %}
+                                    <i class="fas fa-cog mr-1"></i>Custom
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
 
-      {% if page_obj.has_next %}
-        <a class="btn btn-outline-info mb-4" href="?page={{ page_obj.next_page_number }}">Next</a>
-        <a class="btn btn-outline-info mb-4" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
-      {% endif %}
+                <!-- Post Content -->
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title font-weight-bold">
+                        <a href="{% url 'post-detail' post.id %}" class="text-decoration-none text-dark">
+                            {{ post.title }}
+                        </a>
+                    </h5>
+                    <p class="card-text text-muted flex-grow-1">
+                        {{ post.content|truncatewords:25 }}
+                    </p>
+                    
+                    {% if post.file %}
+                    <div class="alert alert-light border mb-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-paperclip text-primary fa-lg mr-2"></i>
+                            <div class="flex-grow-1">
+                                <small class="font-weight-bold">Attachment</small><br>
+                                <small class="text-muted">{{ post.file.name }}</small>
+                            </div>
+                            <a href="{% url 'secure-download' post.pk %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
 
+                <!-- Post Footer -->
+                <div class="card-footer bg-light border-top-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="fas fa-clock mr-1"></i>
+                            {{ post.date_posted|timesince }} ago
+                        </small>
+                        <div class="btn-group" role="group">
+                            <a href="{% url 'post-detail' post.id %}" 
+                               class="btn btn-sm btn-outline-primary"
+                               title="View Post">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            {% if post.author == user %}
+                            <a href="{% url 'post-update' post.id %}" 
+                               class="btn btn-sm btn-outline-secondary"
+                               title="Edit Post">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'post-delete' post.id %}" 
+                               class="btn btn-sm btn-outline-danger"
+                               title="Delete Post">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="fas fa-newspaper fa-5x text-muted mb-4"></i>
+                <h3 class="text-muted">No Posts Yet</h3>
+                <p class="text-muted">
+                    {% if user.username == view.kwargs.username %}
+                        You haven't created any posts yet. Share your thoughts with the world!
+                    {% else %}
+                        {{ view.kwargs.username }} hasn't posted anything yet.
+                    {% endif %}
+                </p>
+                {% if user.username == view.kwargs.username %}
+                <a href="{% url 'post-create' %}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-plus mr-2"></i>
+                    Create Your First Post
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
     {% endif %}
+
+    <!-- Enhanced Pagination -->
+    {% if is_paginated %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Posts pagination">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}" title="First Page">
+                            <i class="fas fa-angle-double-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}" title="Previous Page">
+                            <i class="fas fa-angle-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}" title="Next Page">
+                            <i class="fas fa-angle-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}" title="Last Page">
+                            <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            
+            <!-- Pagination Info -->
+            <div class="text-center text-muted mt-2">
+                <small>
+                    Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} posts
+                    ({{ current_per_page }} per page)
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.hover-shadow {
+    transition: box-shadow 0.3s ease-in-out;
+}
+
+.hover-shadow:hover {
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+    transform: translateY(-2px);
+}
+
+.card-title a:hover {
+    color: #007bff !important;
+}
+
+.btn-group .btn {
+    border-radius: 0.25rem;
+    margin-left: 2px;
+}
+
+.btn-group .btn:first-child {
+    margin-left: 0;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+.pagination .page-link {
+    color: #007bff;
+    border: 1px solid #dee2e6;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.alert-light {
+    background-color: #f8f9fa;
+    border-color: #e9ecef;
+}
+</style>
 {% endblock content %}

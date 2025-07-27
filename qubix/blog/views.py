@@ -37,32 +37,71 @@ except ImportError:
 
 
 def home(request):
+    # Get pagination and sorting parameters
+    posts_per_page = int(request.GET.get('per_page', 12))  # Default 12 posts
+    sort_by = request.GET.get('sort', '-date_posted')  # Default newest first
+    filter_author = request.GET.get('author', '')  # Filter by author
+    
+    # Validate posts per page (limit between 6 and 50)
+    posts_per_page = max(6, min(posts_per_page, 50))
+    
+    # Validate sort options
+    allowed_sorts = {
+        '-date_posted': 'Newest First',
+        'date_posted': 'Oldest First', 
+        'title': 'Title A-Z',
+        '-title': 'Title Z-A',
+        'author__username': 'Author A-Z',
+        '-author__username': 'Author Z-A'
+    }
+    if sort_by not in allowed_sorts:
+        sort_by = '-date_posted'
+    
     # Get all posts that the current user can access
-    all_posts = Post.objects.all().order_by('-date_posted')
+    all_posts = Post.objects.all()
     accessible_posts = []
     
     for post in all_posts:
         if not request.user.is_authenticated:
             # Show only public posts for anonymous users
             if post.visibility == 'public':
-                accessible_posts.append(post)
+                accessible_posts.append(post.pk)
         else:
             if post.can_user_access(request.user):
-                accessible_posts.append(post)
+                accessible_posts.append(post.pk)
     
-    # Get user statistics if authenticated
+    # Apply filtering and sorting
+    queryset = Post.objects.filter(pk__in=accessible_posts)
+    
+    # Filter by author if specified
+    if filter_author:
+        queryset = queryset.filter(author__username__icontains=filter_author)
+    
+    # Apply sorting
+    queryset = queryset.order_by(sort_by)
+    
+    # Pagination
+    from django.core.paginator import Paginator
+    paginator = Paginator(queryset, posts_per_page)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # Get user statistics and recent activity if authenticated
     user_stats = {}
+    recent_posts = []
     if request.user.is_authenticated:
         from users.models import UserGroup, GroupMembership
+        from datetime import timedelta
         
         # Count secure files
         user_stats['total_files'] = SecureFile.objects.filter(uploaded_by=request.user).count()
         
         # Count friends
-        user_stats['total_friends'] = Friendship.objects.filter(
+        user_friends = Friendship.objects.filter(
             Q(requester=request.user) | Q(addressee=request.user),
             status='accepted'
-        ).count()
+        )
+        user_stats['total_friends'] = user_friends.count()
         
         # Count groups (owned + member of)
         owned_groups = UserGroup.objects.filter(owner=request.user).count()
@@ -73,16 +112,45 @@ def home(request):
         user_stats['total_groups'] = owned_groups + member_groups
         
         # Count recent posts (last 30 days)
-        from datetime import timedelta
         recent_date = timezone.now() - timedelta(days=30)
         user_stats['recent_posts'] = Post.objects.filter(
             author=request.user,
             date_posted__gte=recent_date
         ).count()
+        
+        # Get friend IDs for personalized feed
+        friend_users = []
+        for friendship in user_friends:
+            if friendship.requester == request.user:
+                friend_users.append(friendship.addressee)
+            else:
+                friend_users.append(friendship.requester)
+        
+        # Get recent posts from friends and user (last 7 days for highlights)
+        recent_week = timezone.now() - timedelta(days=7)
+        if friend_users:
+            recent_posts = Post.objects.filter(
+                Q(author__in=friend_users) | Q(author=request.user),
+                date_posted__gte=recent_week
+            ).order_by('-date_posted')[:6]  # Get 6 most recent posts
+    
+    # Get all authors for filter dropdown
+    all_authors = User.objects.filter(
+        post__pk__in=accessible_posts
+    ).distinct().order_by('username')
     
     context = {
-        'posts': accessible_posts[:12],  # Limit to 12 posts for home page
+        'posts': page_obj.object_list,
+        'page_obj': page_obj,
+        'is_paginated': page_obj.has_other_pages(),
+        'recent_posts': recent_posts,
         'user_stats': user_stats if request.user.is_authenticated else None,
+        'current_sort': sort_by,
+        'sort_options': allowed_sorts,
+        'current_per_page': posts_per_page,
+        'per_page_options': [6, 12, 24, 36, 50],
+        'current_author_filter': filter_author,
+        'available_authors': all_authors,
     }
     return render(request, 'blog/home.html', context)
 
@@ -134,13 +202,28 @@ class PostListView(LoginRequiredMixin, ListView):
 
 class UserPostListView(LoginRequiredMixin, ListView):
     model = Post
-    template_name = 'blog/user_posts.html'  # <app>/<model>_<viewtype>.html
+    template_name = 'blog/user_posts.html'
     context_object_name = 'posts'
-    paginate_by = 2
-
+    
+    def get_paginate_by(self, queryset):
+        # Dynamic pagination based on request parameter
+        return int(self.request.GET.get('per_page', 12))
+    
     def get_queryset(self):
         user = get_object_or_404(User, username=self.kwargs.get('username'))
-        user_posts = Post.objects.filter(author=user).order_by('-date_posted')
+        
+        # Get sorting parameter
+        sort_by = self.request.GET.get('sort', '-date_posted')
+        allowed_sorts = {
+            '-date_posted': 'Newest First',
+            'date_posted': 'Oldest First', 
+            'title': 'Title A-Z',
+            '-title': 'Title Z-A'
+        }
+        if sort_by not in allowed_sorts:
+            sort_by = '-date_posted'
+        
+        user_posts = Post.objects.filter(author=user).order_by(sort_by)
         
         # Filter posts based on what current user can access
         accessible_posts = []
@@ -148,7 +231,26 @@ class UserPostListView(LoginRequiredMixin, ListView):
             if post.can_user_access(self.request.user):
                 accessible_posts.append(post.pk)
         
-        return Post.objects.filter(pk__in=accessible_posts).order_by('-date_posted')
+        return Post.objects.filter(pk__in=accessible_posts).order_by(sort_by)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Add sorting and pagination options to context
+        sort_options = {
+            '-date_posted': 'Newest First',
+            'date_posted': 'Oldest First', 
+            'title': 'Title A-Z',
+            '-title': 'Title Z-A'
+        }
+        
+        context.update({
+            'current_sort': self.request.GET.get('sort', '-date_posted'),
+            'sort_options': sort_options,
+            'current_per_page': int(self.request.GET.get('per_page', 12)),
+            'per_page_options': [6, 12, 24, 36, 50],
+        })
+        return context
 
 
 class PostDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):

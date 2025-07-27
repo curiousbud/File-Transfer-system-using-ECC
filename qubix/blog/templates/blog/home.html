@@ -240,6 +240,72 @@
     </div>
     {% endif %}
 
+    <!-- Recent Activity from Friends -->
+    {% if user.is_authenticated and recent_posts %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock mr-2 text-primary"></i>
+                        Recent Activity from Your Network
+                    </h5>
+                    <small class="text-muted">Latest posts from you and your friends this week</small>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for recent_post in recent_posts %}
+                        <div class="col-lg-4 col-md-6 mb-3">
+                            <div class="card border h-100">
+                                <div class="card-body p-3">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <img src="{{ recent_post.author.profile.image.url }}" 
+                                             alt="Avatar" 
+                                             class="rounded-circle mr-2" 
+                                             width="24" height="24">
+                                        <div>
+                                            <h6 class="mb-0 font-weight-bold">
+                                                <a href="{% url 'user-posts' recent_post.author.username %}" class="text-decoration-none">
+                                                    {{ recent_post.author.username }}
+                                                    {% if recent_post.author == user %}
+                                                        <span class="badge badge-primary badge-sm">You</span>
+                                                    {% endif %}
+                                                </a>
+                                            </h6>
+                                            <small class="text-muted">{{ recent_post.date_posted|timesince }} ago</small>
+                                        </div>
+                                    </div>
+                                    <h6 class="card-title">
+                                        <a href="{% url 'post-detail' recent_post.id %}" class="text-decoration-none">
+                                            {{ recent_post.title|truncatechars:40 }}
+                                        </a>
+                                    </h6>
+                                    <p class="card-text text-muted small">
+                                        {{ recent_post.content|truncatewords:12 }}
+                                    </p>
+                                    {% if recent_post.file %}
+                                    <small class="text-primary">
+                                        <i class="fas fa-paperclip mr-1"></i>
+                                        Has attachment
+                                    </small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'user-posts' user %}" class="btn btn-outline-primary">
+                            <i class="fas fa-newspaper mr-1"></i>
+                            View Your Complete Feed
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Posts Feed -->
     <div class="row">
         <div class="col-12">
@@ -254,6 +320,106 @@
                     Create Post
                 </a>
                 {% endif %}
+            </div>
+            
+            <!-- Advanced Filters and Sorting -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-filter mr-2"></i>
+                        Filter & Sort Posts
+                        <button class="btn btn-sm btn-outline-secondary float-right" type="button" data-toggle="collapse" data-target="#filtersCollapse">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </h6>
+                </div>
+                <div class="collapse show" id="filtersCollapse">
+                    <div class="card-body">
+                        <form method="get" id="filtersForm">
+                            <div class="row">
+                                <!-- Posts per Page -->
+                                <div class="col-md-3 mb-3">
+                                    <label for="per_page" class="form-label">
+                                        <strong>Posts per Page</strong>
+                                    </label>
+                                    <select class="form-control" name="per_page" id="per_page" onchange="this.form.submit()">
+                                        {% for option in per_page_options %}
+                                            <option value="{{ option }}" {% if option == current_per_page %}selected{% endif %}>
+                                                {{ option }} posts
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- Sort By -->
+                                <div class="col-md-3 mb-3">
+                                    <label for="sort" class="form-label">
+                                        <strong>Sort By</strong>
+                                    </label>
+                                    <select class="form-control" name="sort" id="sort" onchange="this.form.submit()">
+                                        {% for value, label in sort_options.items %}
+                                            <option value="{{ value }}" {% if value == current_sort %}selected{% endif %}>
+                                                {{ label }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- Filter by Author -->
+                                <div class="col-md-4 mb-3">
+                                    <label for="author" class="form-label">
+                                        <strong>Filter by Author</strong>
+                                    </label>
+                                    <select class="form-control" name="author" id="author" onchange="this.form.submit()">
+                                        <option value="">All Authors</option>
+                                        {% for author in available_authors %}
+                                            <option value="{{ author.username }}" {% if author.username == current_author_filter %}selected{% endif %}>
+                                                {{ author.username }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- Reset Filters -->
+                                <div class="col-md-2 mb-3 d-flex align-items-end">
+                                    <a href="?" class="btn btn-outline-secondary btn-block">
+                                        <i class="fas fa-undo mr-1"></i>
+                                        Reset
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Active Filters Display -->
+                            {% if current_author_filter or current_sort != '-date_posted' or current_per_page != 12 %}
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="alert alert-info py-2">
+                                        <strong>Active Filters:</strong>
+                                        {% if current_author_filter %}
+                                            <span class="badge badge-primary mr-2">
+                                                Author: {{ current_author_filter }}
+                                                <a href="?{% if current_sort != '-date_posted' %}sort={{ current_sort }}&{% endif %}{% if current_per_page != 12 %}per_page={{ current_per_page }}{% endif %}" class="text-white ml-1">×</a>
+                                            </span>
+                                        {% endif %}
+                                        {% if current_sort != '-date_posted' %}
+                                            <span class="badge badge-success mr-2">
+                                                Sort: {{ sort_options|lookup:current_sort }}
+                                                <a href="?{% if current_author_filter %}author={{ current_author_filter }}&{% endif %}{% if current_per_page != 12 %}per_page={{ current_per_page }}{% endif %}" class="text-white ml-1">×</a>
+                                            </span>
+                                        {% endif %}
+                                        {% if current_per_page != 12 %}
+                                            <span class="badge badge-warning mr-2">
+                                                Per Page: {{ current_per_page }}
+                                                <a href="?{% if current_author_filter %}author={{ current_author_filter }}&{% endif %}{% if current_sort != '-date_posted' %}sort={{ current_sort }}{% endif %}" class="text-white ml-1">×</a>
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -333,7 +499,7 @@
         {% endfor %}
     </div>
 
-    <!-- Pagination -->
+    <!-- Enhanced Pagination -->
     {% if is_paginated %}
     <div class="row">
         <div class="col-12">
@@ -341,12 +507,12 @@
                 <ul class="pagination justify-content-center">
                     {% if page_obj.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page=1">
+                        <a class="page-link" href="?page=1{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}{% if current_author_filter %}&author={{ current_author_filter }}{% endif %}">
                             <i class="fas fa-angle-double-left"></i>
                         </a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}{% if current_author_filter %}&author={{ current_author_filter }}{% endif %}">
                             <i class="fas fa-angle-left"></i>
                         </a>
                     </li>
@@ -359,25 +525,33 @@
                     </li>
                     {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                        <a class="page-link" href="?page={{ num }}{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}{% if current_author_filter %}&author={{ current_author_filter }}{% endif %}">{{ num }}</a>
                     </li>
                     {% endif %}
                     {% endfor %}
 
                     {% if page_obj.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}{% if current_author_filter %}&author={{ current_author_filter }}{% endif %}">
                             <i class="fas fa-angle-right"></i>
                         </a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if current_sort %}&sort={{ current_sort }}{% endif %}{% if current_per_page != 12 %}&per_page={{ current_per_page }}{% endif %}{% if current_author_filter %}&author={{ current_author_filter }}{% endif %}">
                             <i class="fas fa-angle-double-right"></i>
                         </a>
                     </li>
                     {% endif %}
                 </ul>
             </nav>
+            
+            <!-- Pagination Info -->
+            <div class="text-center text-muted mt-2">
+                <small>
+                    Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} posts
+                    ({{ current_per_page }} per page)
+                </small>
+            </div>
         </div>
     </div>
     {% endif %}
