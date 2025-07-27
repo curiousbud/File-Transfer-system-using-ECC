@@ -198,12 +198,11 @@ def key_management(request):
         'ecc_keypair': ecc_keypair,
         'key_info': key_info,
         'rotation_history': rotation_history,
-        'available_curves': available_curves
+        'available_curves': available_curves,
+        'crypto_available': CRYPTO_AVAILABLE
     }
-    
+
     return render(request, 'users/key_management.html', context)
-
-
 @login_required
 def generate_keys(request):
     """Generate new ECC key pair"""
