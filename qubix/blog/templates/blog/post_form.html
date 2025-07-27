@@ -59,45 +59,60 @@
                             </small>
                         </div>
 
-                        <!-- Visibility Setting -->
-                        <div class="form-group">
-                            <label for="{{ form.visibility.id_for_label }}" class="form-label">
-                                <strong>Visibility</strong>
-                            </label>
-                            {{ form.visibility }}
-                            {% if form.visibility.errors %}
-                                <div class="text-danger">{{ form.visibility.errors }}</div>
-                            {% endif %}
-                            <small class="form-text text-muted">
-                                Choose who can see this post
-                            </small>
-                        </div>
-
-                        <!-- Advanced Sharing Options -->
-                        <div class="form-group" id="advancedSharing">
+                        <!-- Unified Sharing System -->
+                        <div class="form-group" id="sharingSystem">
                             <label class="form-label">
-                                <strong>Additional Sharing</strong>
-                                <span class="text-muted">(Optional - Beyond visibility setting)</span>
+                                <strong>Share With</strong>
+                                <span class="text-muted">- Choose your audience</span>
                             </label>
+                            
+                            <!-- Quick Visibility Options -->
+                            <div class="sharing-quick-options mb-3">
+                                <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                                    <label class="btn btn-outline-primary active" id="publicOption">
+                                        <input type="radio" name="quick_visibility" value="public" checked>
+                                        <i class="fas fa-globe mr-1"></i>
+                                        Public
+                                    </label>
+                                    <label class="btn btn-outline-success" id="friendsOnlyOption">
+                                        <input type="radio" name="quick_visibility" value="friends">
+                                        <i class="fas fa-user-friends mr-1"></i>
+                                        Friends Only
+                                    </label>
+                                    <label class="btn btn-outline-info" id="customOption">
+                                        <input type="radio" name="quick_visibility" value="custom">
+                                        <i class="fas fa-cog mr-1"></i>
+                                        Custom Selection
+                                    </label>
+                                </div>
+                                <input type="hidden" name="visibility" id="visibilityField" value="public">
+                            </div>
+                            
+                            <!-- Custom Selection Panel -->
+                            <div id="customSelectionPanel" class="custom-selection-panel" style="display: none;">
+                                <div class="alert alert-info" role="alert">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    <strong>Custom Sharing:</strong> Select specific friends, groups, or search for users to share with.
+                                </div>
                             
                             <!-- Selection Mode Tabs -->
                             <ul class="nav nav-tabs mb-3" id="sharingTabs" role="tablist">
                                 <li class="nav-item" role="presentation">
                                     <a class="nav-link active" id="friends-tab" data-toggle="tab" href="#friends-panel" role="tab">
                                         <i class="fas fa-user-friends mr-1"></i>
-                                        Specific Friends
+                                        Friends <span class="badge badge-light" id="friendsBadge">0</span>
                                     </a>
                                 </li>
                                 <li class="nav-item" role="presentation">
                                     <a class="nav-link" id="groups-tab" data-toggle="tab" href="#groups-panel" role="tab">
                                         <i class="fas fa-users mr-1"></i>
-                                        Groups
+                                        Groups <span class="badge badge-light" id="groupsBadge">0</span>
                                     </a>
                                 </li>
                                 <li class="nav-item" role="presentation">
                                     <a class="nav-link" id="search-tab" data-toggle="tab" href="#search-panel" role="tab">
                                         <i class="fas fa-search mr-1"></i>
-                                        Search Users
+                                        Search Users <span class="badge badge-light" id="searchBadge">0</span>
                                     </a>
                                 </li>
                             </ul>
@@ -126,7 +141,8 @@
                                                                    class="custom-control-input friend-checkbox" 
                                                                    id="friend_{{ friend.id }}" 
                                                                    name="share_with_friends" 
-                                                                   value="{{ friend.id }}">
+                                                                   value="{{ friend.id }}"
+                                                                   data-username="{{ friend.username }}">
                                                             <label class="custom-control-label" for="friend_{{ friend.id }}">
                                                                 <div class="d-flex align-items-center">
                                                                     <div class="user-avatar mr-2">
@@ -139,6 +155,9 @@
                                                                         {% endif %}
                                                                     </div>
                                                                     <span class="font-weight-medium">{{ friend.username }}</span>
+                                                                    {% if friend.first_name or friend.last_name %}
+                                                                        <br><small class="text-muted">{{ friend.first_name }} {{ friend.last_name }}</small>
+                                                                    {% endif %}
                                                                 </div>
                                                             </label>
                                                         </div>
@@ -147,10 +166,10 @@
                                             </div>
                                         </div>
                                     {% else %}
-                                        <div class="alert alert-info">
-                                            <i class="fas fa-info-circle mr-2"></i>
-                                            No friends available for specific sharing.
-                                            <a href="{% url 'user-search' %}" class="alert-link">Find friends</a>
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                                            No friends available for sharing.
+                                            <a href="{% url 'user-search' %}" class="alert-link">Find friends</a> to connect with.
                                         </div>
                                     {% endif %}
                                 </div>
@@ -159,6 +178,17 @@
                                 <div class="tab-pane fade" id="groups-panel" role="tabpanel">
                                     {% if user_groups %}
                                         <div class="sharing-selection-area border rounded p-3" style="max-height: 250px; overflow-y: auto;">
+                                            <div class="mb-2">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllGroups()">
+                                                    Select All
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ml-1" onclick="clearAllGroups()">
+                                                    Clear All
+                                                </button>
+                                                <span class="ml-3 text-muted">
+                                                    <span id="groupsSelectedCount">0</span> of {{ user_groups|length }} selected
+                                                </span>
+                                            </div>
                                             {% for group in user_groups %}
                                                 <div class="card mb-2">
                                                     <div class="card-body p-2">
@@ -167,12 +197,18 @@
                                                                    class="custom-control-input group-checkbox" 
                                                                    id="group_{{ group.id }}" 
                                                                    name="share_with_groups" 
-                                                                   value="{{ group.id }}">
+                                                                   value="{{ group.id }}"
+                                                                   data-name="{{ group.name }}"
+                                                                   data-member-count="{{ group.get_active_members.count }}">
                                                             <label class="custom-control-label w-100" for="group_{{ group.id }}">
                                                                 <div class="d-flex justify-content-between align-items-center">
                                                                     <div>
                                                                         <h6 class="mb-0">{{ group.name }}</h6>
+                                                                        {% if group.description %}
+                                                                            <small class="text-muted">{{ group.description|truncatechars:40 }}</small><br>
+                                                                        {% endif %}
                                                                         <small class="text-muted">
+                                                                            <i class="fas fa-users mr-1"></i>
                                                                             {{ group.get_active_members.count }} member{{ group.get_active_members.count|pluralize }}
                                                                         </small>
                                                                     </div>
@@ -187,10 +223,10 @@
                                             {% endfor %}
                                         </div>
                                     {% else %}
-                                        <div class="alert alert-info">
-                                            <i class="fas fa-info-circle mr-2"></i>
-                                            No groups available.
-                                            <a href="{% url 'create-group' %}" class="alert-link">Create a group</a>
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                                            No groups available for sharing.
+                                            <a href="{% url 'create-group' %}" class="alert-link">Create a group</a> to organize your contacts.
                                         </div>
                                     {% endif %}
                                 </div>
@@ -202,7 +238,7 @@
                                             <input type="text" 
                                                    class="form-control" 
                                                    id="userSearchInput" 
-                                                   placeholder="Search users by username...">
+                                                   placeholder="Search users by username or name...">
                                             <div class="input-group-append">
                                                 <button class="btn btn-outline-secondary" type="button" onclick="searchUsers()">
                                                     <i class="fas fa-search"></i>
@@ -219,8 +255,24 @@
                                 </div>
                             </div>
                             
-                            <small class="form-text text-muted">
-                                Additional specific sharing beyond the visibility setting above
+                            <!-- Selected Recipients Summary -->
+                            <div class="mt-3">
+                                <div class="card bg-light">
+                                    <div class="card-body p-2">
+                                        <h6 class="mb-2">
+                                            <i class="fas fa-check-circle mr-1 text-success"></i>
+                                            Selected Recipients (<span id="totalSelectedCount">0</span>)
+                                        </h6>
+                                        <div id="selectedRecipientsSummary" class="text-muted">
+                                            No custom recipients selected - using visibility setting above
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            </div>
+                            
+                            <small class="form-text text-muted mt-2">
+                                <strong>How it works:</strong> Choose a quick option above, or select "Custom Selection" to pick specific friends, groups, or users.
                             </small>
                         </div>
 
@@ -243,132 +295,402 @@
 </div>
 
 <script>
-// Helper functions for select all/clear all
-function selectAllFriends() {
-    const checkboxes = document.querySelectorAll('.friend-checkbox');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = true;
-    });
-    updateFriendsCount();
-}
-
-function clearAllFriends() {
-    const checkboxes = document.querySelectorAll('.friend-checkbox');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = false;
-    });
-    updateFriendsCount();
-}
-
-function updateFriendsCount() {
-    const selectedCount = document.querySelectorAll('.friend-checkbox:checked').length;
-    document.getElementById('friendsSelectedCount').textContent = selectedCount;
-}
-
-// User search functionality
-function searchUsers() {
-    const searchTerm = document.getElementById('userSearchInput').value.trim();
-    const resultsContainer = document.getElementById('searchResults');
+// Unified Sharing System
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize sharing system
+    const publicOption = document.getElementById('publicOption');
+    const friendsOnlyOption = document.getElementById('friendsOnlyOption');
+    const customOption = document.getElementById('customOption');
+    const customSelectionPanel = document.getElementById('customSelectionPanel');
+    const visibilityField = document.getElementById('visibilityField');
     
-    if (searchTerm.length < 2) {
-        resultsContainer.innerHTML = `
-            <div class="text-center text-muted">
-                <i class="fas fa-search fa-2x mb-2"></i>
-                <p>Please enter at least 2 characters to search</p>
-            </div>
-        `;
-        return;
+    // Quick visibility option handlers
+    publicOption.addEventListener('click', function() {
+        visibilityField.value = 'public';
+        customSelectionPanel.style.display = 'none';
+        clearAllSelections();
+        updateSummary();
+    });
+    
+    friendsOnlyOption.addEventListener('click', function() {
+        visibilityField.value = 'friends';
+        customSelectionPanel.style.display = 'none';
+        clearAllSelections();
+        updateSummary();
+    });
+    
+    customOption.addEventListener('click', function() {
+        visibilityField.value = 'custom';
+        customSelectionPanel.style.display = 'block';
+        updateSummary();
+    });
+    
+    // Selection tracking
+    let selectedFriends = new Set();
+    let selectedGroups = new Set();
+    let selectedSearchUsers = new Set();
+    
+    // Helper functions for select all/clear all
+    function selectAllFriends() {
+        const checkboxes = document.querySelectorAll('.friend-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = true;
+        });
+        updateFriendSelection();
+        updateSummary();
     }
     
-    // Show loading
-    resultsContainer.innerHTML = `
-        <div class="text-center">
-            <div class="spinner-border text-primary" role="status">
-                <span class="sr-only">Searching...</span>
-            </div>
-            <p class="mt-2">Searching for users...</p>
-        </div>
-    `;
-    
-    // Make AJAX request to search for users
-    fetch('/api/search-users/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        },
-        body: JSON.stringify({ search_term: searchTerm })
-    })
-    .then(response => response.json())
-    .then(data => {
-        displaySearchResults(data.users);
-    })
-    .catch(error => {
-        console.error('Search error:', error);
-        resultsContainer.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle mr-2"></i>
-                Error searching for users. Please try again.
-            </div>
-        `;
-    });
-}
-
-function displaySearchResults(users) {
-    const resultsContainer = document.getElementById('searchResults');
-    
-    if (users.length === 0) {
-        resultsContainer.innerHTML = `
-            <div class="text-center text-muted">
-                <i class="fas fa-user-slash fa-2x mb-2"></i>
-                <p>No users found</p>
-            </div>
-        `;
-        return;
+    function clearAllFriends() {
+        const checkboxes = document.querySelectorAll('.friend-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        updateFriendSelection();
+        updateSummary();
     }
     
-    let resultsHTML = '';
-    users.forEach(user => {
-        resultsHTML += `
-            <div class="mb-2">
-                <div class="custom-control custom-checkbox">
-                    <input type="checkbox" 
-                           class="custom-control-input" 
-                           id="searchuser_${user.id}" 
-                           name="share_with_search_users" 
-                           value="${user.id}">
-                    <label class="custom-control-label" for="searchuser_${user.id}">
-                        <i class="fas fa-user mr-1"></i>
-                        ${user.username}
-                        ${user.full_name ? `<small class="text-muted">(${user.full_name})</small>` : ''}
-                    </label>
+    function selectAllGroups() {
+        const checkboxes = document.querySelectorAll('.group-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = true;
+        });
+        updateGroupSelection();
+        updateSummary();
+    }
+    
+    function clearAllGroups() {
+        const checkboxes = document.querySelectorAll('.group-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        updateGroupSelection();
+        updateSummary();
+    }
+    
+    function clearAllSelections() {
+        clearAllFriends();
+        clearAllGroups();
+        selectedSearchUsers.clear();
+        updateSummary();
+    }
+    
+    // Update functions for selection tracking
+    function updateFriendSelection() {
+        const checkboxes = document.querySelectorAll('.friend-checkbox');
+        selectedFriends.clear();
+        let selectedCount = 0;
+        
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                selectedFriends.add({
+                    id: checkbox.value,
+                    username: checkbox.dataset.username,
+                    type: 'friend'
+                });
+                selectedCount++;
+            }
+        });
+        
+        document.getElementById('friendsSelectedCount').textContent = selectedCount;
+        document.getElementById('friendsBadge').textContent = selectedCount;
+    }
+    
+    function updateGroupSelection() {
+        const checkboxes = document.querySelectorAll('.group-checkbox');
+        selectedGroups.clear();
+        let selectedCount = 0;
+        
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                selectedGroups.add({
+                    id: checkbox.value,
+                    name: checkbox.dataset.name,
+                    memberCount: parseInt(checkbox.dataset.memberCount || 0),
+                    type: 'group'
+                });
+                selectedCount++;
+            }
+        });
+        
+        document.getElementById('groupsSelectedCount').textContent = selectedCount;
+        document.getElementById('groupsBadge').textContent = selectedCount;
+    }
+    
+    function updateSummary() {
+        const totalSelected = selectedFriends.size + selectedGroups.size + selectedSearchUsers.size;
+        document.getElementById('totalSelectedCount').textContent = totalSelected;
+        document.getElementById('searchBadge').textContent = selectedSearchUsers.size;
+        
+        let summary = '';
+        const visibilityValue = visibilityField.value;
+        
+        if (visibilityValue === 'public') {
+            summary = 'Visible to everyone on the platform';
+        } else if (visibilityValue === 'friends') {
+            summary = 'Visible to all your friends only';
+        } else if (visibilityValue === 'custom') {
+            if (totalSelected === 0) {
+                summary = 'No custom recipients selected - select friends, groups, or search for users';
+            } else {
+                const summaryParts = [];
+                
+                if (selectedFriends.size > 0) {
+                    summaryParts.push(`${selectedFriends.size} friend${selectedFriends.size > 1 ? 's' : ''}`);
+                }
+                
+                if (selectedGroups.size > 0) {
+                    const totalGroupMembers = Array.from(selectedGroups).reduce((sum, group) => sum + group.memberCount, 0);
+                    summaryParts.push(`${selectedGroups.size} group${selectedGroups.size > 1 ? 's' : ''} (${totalGroupMembers} total members)`);
+                }
+                
+                if (selectedSearchUsers.size > 0) {
+                    summaryParts.push(`${selectedSearchUsers.size} searched user${selectedSearchUsers.size > 1 ? 's' : ''}`);
+                }
+                
+                summary = 'Shared with: ' + summaryParts.join(', ');
+            }
+        }
+        
+        document.getElementById('selectedRecipientsSummary').textContent = summary;
+    }
+    
+    // Checkbox change handlers
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('friend-checkbox')) {
+            updateFriendSelection();
+            updateSummary();
+        } else if (e.target.classList.contains('group-checkbox')) {
+            updateGroupSelection();
+            updateSummary();
+        }
+    });
+    
+    // User search functionality
+    function searchUsers() {
+        const searchTerm = document.getElementById('userSearchInput').value.trim();
+        const resultsContainer = document.getElementById('searchResults');
+        
+        if (searchTerm.length < 2) {
+            resultsContainer.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-search fa-2x mb-2"></i>
+                    <p>Please enter at least 2 characters to search</p>
                 </div>
+            `;
+            return;
+        }
+        
+        // Show loading
+        resultsContainer.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Searching...</span>
+                </div>
+                <p class="mt-2">Searching for users...</p>
             </div>
         `;
+        
+        // Make AJAX request
+        fetch('/api/search-users/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({ search_term: searchTerm })
+        })
+        .then(response => response.json())
+        .then(data => {
+            displaySearchResults(data.users);
+        })
+        .catch(error => {
+            console.error('Search error:', error);
+            resultsContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Error searching for users. Please try again.
+                </div>
+            `;
+        });
+    }
+    
+    function displaySearchResults(users) {
+        const resultsContainer = document.getElementById('searchResults');
+        
+        if (users.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-user-slash fa-2x mb-2"></i>
+                    <p>No users found</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let resultsHTML = '';
+        users.forEach(user => {
+            resultsHTML += `
+                <div class="mb-2">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" 
+                               class="custom-control-input search-user-checkbox" 
+                               id="searchuser_${user.id}" 
+                               name="share_with_search_users" 
+                               value="${user.id}"
+                               data-username="${user.username}"
+                               onchange="updateSearchUserSelection()">
+                        <label class="custom-control-label" for="searchuser_${user.id}">
+                            <div class="d-flex align-items-center">
+                                <div class="user-avatar mr-2">
+                                    <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center" style="width: 20px; height: 20px;">
+                                        <span class="text-white text-xs">${user.username.charAt(0).toUpperCase()}</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="font-weight-medium">${user.username}</div>
+                                    ${user.full_name ? `<small class="text-muted">${user.full_name}</small>` : ''}
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            `;
+        });
+        
+        resultsContainer.innerHTML = resultsHTML;
+    }
+    
+    function updateSearchUserSelection() {
+        const checkboxes = document.querySelectorAll('.search-user-checkbox');
+        selectedSearchUsers.clear();
+        
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                selectedSearchUsers.add({
+                    id: checkbox.value,
+                    username: checkbox.dataset.username,
+                    type: 'search_user'
+                });
+            }
+        });
+        
+        updateSummary();
+    }
+    
+    // Make functions global for onclick handlers
+    window.selectAllFriends = selectAllFriends;
+    window.clearAllFriends = clearAllFriends;
+    window.selectAllGroups = selectAllGroups;
+    window.clearAllGroups = clearAllGroups;
+    window.searchUsers = searchUsers;
+    window.updateSearchUserSelection = updateSearchUserSelection;
+    
+    // Search on Enter key
+    document.addEventListener('keypress', function(e) {
+        if (e.target.id === 'userSearchInput' && e.key === 'Enter') {
+            e.preventDefault();
+            searchUsers();
+        }
     });
     
-    resultsContainer.innerHTML = resultsHTML;
-}
-
-// Update counts when checkboxes change
-document.addEventListener('change', function(e) {
-    if (e.target.classList.contains('friend-checkbox')) {
-        updateFriendsCount();
-    }
-});
-
-// Search on Enter key
-document.addEventListener('keypress', function(e) {
-    if (e.target.id === 'userSearchInput' && e.key === 'Enter') {
-        e.preventDefault();
-        searchUsers();
-    }
+    // Initialize summary
+    updateSummary();
 });
 </script>
 
 <style>
 .text-xs {
     font-size: 0.75rem;
+}
+
+.sharing-quick-options {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 0.5rem;
+    border: 1px solid #e9ecef;
+}
+
+.sharing-quick-options .btn-group .btn {
+    padding: 10px 20px;
+    font-weight: 500;
+}
+
+.sharing-quick-options .btn-group .btn.active {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.custom-selection-panel {
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 20px;
+    background-color: #fff;
+    margin-top: 15px;
+}
+
+.nav-tabs .nav-link {
+    color: #495057;
+    border: 1px solid transparent;
+    border-top-left-radius: 0.25rem;
+    border-top-right-radius: 0.25rem;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #e9ecef #e9ecef #dee2e6;
+}
+
+.nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+
+.nav-tabs .badge {
+    font-size: 0.7em;
+    margin-left: 5px;
+}
+
+.sharing-selection-area {
+    background-color: #f8f9fa;
+}
+
+.custom-control-label {
+    cursor: pointer;
+    font-weight: normal;
+}
+
+.user-avatar {
+    flex-shrink: 0;
+}
+
+.group-card:hover {
+    background-color: #f8f9fa;
+}
+
+.alert {
+    border-radius: 0.375rem;
+}
+
+.card.bg-light {
+    border: 1px solid #e9ecef;
+}
+
+.btn-group-toggle .btn input[type="radio"] {
+    clip: rect(0,0,0,0);
+    pointer-events: none;
+    position: absolute;
+}
+
+@media (max-width: 768px) {
+    .sharing-quick-options .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .sharing-quick-options .btn-group .btn {
+        width: 100%;
+        margin-bottom: 5px;
+        border-radius: 0.25rem !important;
+    }
 }
 </style>
 {% endblock content %}

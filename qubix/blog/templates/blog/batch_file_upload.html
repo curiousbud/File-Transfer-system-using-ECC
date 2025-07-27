@@ -65,30 +65,57 @@
                             </div>
                         </div>
 
-                        <!-- Recipients Selection -->
+                        <!-- Unified Recipients Selection -->
                         <div class="form-group">
                             <label class="form-label">
-                                <strong>Share with Users & Groups</strong>
+                                <strong>Share with Recipients</strong>
+                                <span class="text-muted">- Choose who can access these encrypted files</span>
                             </label>
+                            
+                            <!-- Quick Selection Options -->
+                            <div class="sharing-quick-options mb-3">
+                                <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                                    <label class="btn btn-outline-success active" id="friendsQuickOption">
+                                        <input type="radio" name="quick_sharing" value="friends" checked>
+                                        <i class="fas fa-user-friends mr-1"></i>
+                                        All My Friends
+                                    </label>
+                                    <label class="btn btn-outline-info" id="customQuickOption">
+                                        <input type="radio" name="quick_sharing" value="custom">
+                                        <i class="fas fa-cog mr-1"></i>
+                                        Custom Selection
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted mt-2">
+                                    Files will be encrypted for each selected recipient individually
+                                </small>
+                            </div>
+                            
+                            <!-- Custom Selection Panel -->
+                            <div id="customRecipientPanel" class="custom-selection-panel" style="display: none;">
+                                <div class="alert alert-info" role="alert">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    <strong>Custom Sharing:</strong> Select specific friends, groups, or search for users to share encrypted files with.
+                                </div>
                             
                             <!-- Selection Mode Tabs -->
                             <ul class="nav nav-tabs mb-3" id="recipientTabs" role="tablist">
                                 <li class="nav-item" role="presentation">
                                     <a class="nav-link active" id="friends-tab" data-toggle="tab" href="#friends-panel" role="tab">
                                         <i class="fas fa-user-friends mr-1"></i>
-                                        Friends
+                                        Friends <span class="badge badge-light" id="friendsBadge">0</span>
                                     </a>
                                 </li>
                                 <li class="nav-item" role="presentation">
                                     <a class="nav-link" id="groups-tab" data-toggle="tab" href="#groups-panel" role="tab">
                                         <i class="fas fa-users mr-1"></i>
-                                        Groups
+                                        Groups <span class="badge badge-light" id="groupsBadge">0</span>
                                     </a>
                                 </li>
                                 <li class="nav-item" role="presentation">
                                     <a class="nav-link" id="search-tab" data-toggle="tab" href="#search-panel" role="tab">
                                         <i class="fas fa-search mr-1"></i>
-                                        Search Users
+                                        Search Users <span class="badge badge-light" id="searchBadge">0</span>
                                     </a>
                                 </li>
                             </ul>
@@ -242,11 +269,16 @@
                                             Selected Recipients (<span id="totalSelectedCount">0</span>)
                                         </h6>
                                         <div id="selectedRecipientsSummary" class="text-muted">
-                                            No recipients selected
+                                            All your friends will receive encrypted files
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                            </div>
+                            
+                            <small class="form-text text-muted mt-2">
+                                <strong>Security:</strong> Each file is encrypted individually for each recipient using their public key.
+                            </small>
                         </div>
 
                         <!-- Encryption Settings -->
@@ -365,6 +397,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const MAX_FILES_PER_BATCH = config.max_files_per_batch;
     const MAX_BATCH_SIZE_MB = config.max_batch_size_mb;
     
+    // Initialize unified sharing system
+    const friendsQuickOption = document.getElementById('friendsQuickOption');
+    const customQuickOption = document.getElementById('customQuickOption');
+    const customRecipientPanel = document.getElementById('customRecipientPanel');
+    
+    // Quick sharing option handlers
+    friendsQuickOption.addEventListener('click', function() {
+        customRecipientPanel.style.display = 'none';
+        clearAllSelections();
+        updateSummary();
+    });
+    
+    customQuickOption.addEventListener('click', function() {
+        customRecipientPanel.style.display = 'block';
+        updateSummary();
+    });
+    
     // Recipient selection tracking
     let selectedFriends = new Set();
     let selectedGroups = new Set();
@@ -458,6 +507,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         document.getElementById('friendsSelectedCount').textContent = selectedCount;
+        document.getElementById('friendsBadge').textContent = selectedCount;
     }
     
     function updateGroupSelection() {
@@ -470,7 +520,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectedGroups.add({
                     id: checkbox.value,
                     name: checkbox.closest('.card-body').querySelector('h6').textContent,
-                    memberCount: parseInt(checkbox.dataset.memberCount),
+                    memberCount: parseInt(checkbox.dataset.memberCount || 0),
                     type: 'group'
                 });
                 selectedCount++;
@@ -478,44 +528,72 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         document.getElementById('groupsSelectedCount').textContent = selectedCount;
+        document.getElementById('groupsBadge').textContent = selectedCount;
     }
     
-    function updateRecipientsSummary() {
+    function clearAllSelections() {
+        clearAllFriends();
+        clearAllGroups();
+        selectedSearchUsers.clear();
+        updateSummary();
+    }
+    
+    function updateSummary() {
+        const isCustomMode = customQuickOption.querySelector('input').checked;
         const totalSelected = selectedFriends.size + selectedGroups.size + selectedSearchUsers.size;
+        
         document.getElementById('totalSelectedCount').textContent = totalSelected;
+        document.getElementById('searchBadge').textContent = selectedSearchUsers.size;
         
         let summary = '';
-        if (totalSelected === 0) {
-            summary = 'No recipients selected';
+        
+        if (!isCustomMode) {
+            summary = 'All your friends will receive encrypted files';
         } else {
-            const summaryParts = [];
-            
-            if (selectedFriends.size > 0) {
-                summaryParts.push(`${selectedFriends.size} friend${selectedFriends.size > 1 ? 's' : ''}`);
+            if (totalSelected === 0) {
+                summary = 'No custom recipients selected - select friends, groups, or search for users';
+            } else {
+                const summaryParts = [];
+                
+                if (selectedFriends.size > 0) {
+                    summaryParts.push(`${selectedFriends.size} friend${selectedFriends.size > 1 ? 's' : ''}`);
+                }
+                
+                if (selectedGroups.size > 0) {
+                    const totalGroupMembers = Array.from(selectedGroups).reduce((sum, group) => sum + group.memberCount, 0);
+                    summaryParts.push(`${selectedGroups.size} group${selectedGroups.size > 1 ? 's' : ''} (${totalGroupMembers} members)`);
+                }
+                
+                if (selectedSearchUsers.size > 0) {
+                    summaryParts.push(`${selectedSearchUsers.size} searched user${selectedSearchUsers.size > 1 ? 's' : ''}`);
+                }
+                
+                summary = 'Files will be encrypted for: ' + summaryParts.join(', ');
             }
-            
-            if (selectedGroups.size > 0) {
-                const totalGroupMembers = Array.from(selectedGroups).reduce((sum, group) => sum + group.memberCount, 0);
-                summaryParts.push(`${selectedGroups.size} group${selectedGroups.size > 1 ? 's' : ''} (${totalGroupMembers} members)`);
-            }
-            
-            if (selectedSearchUsers.size > 0) {
-                summaryParts.push(`${selectedSearchUsers.size} searched user${selectedSearchUsers.size > 1 ? 's' : ''}`);
-            }
-            
-            summary = summaryParts.join(', ');
         }
         
         document.getElementById('selectedRecipientsSummary').textContent = summary;
     }
     
+    function updateRecipientsSummary() {
+        updateSummary();
+    }
+    
     function updateUploadButton() {
         const files = fileInput.files;
+        const isCustomMode = customQuickOption.querySelector('input').checked;
         const hasValidFiles = files.length > 0;
-        const hasRecipients = selectedFriends.size > 0 || selectedGroups.size > 0 || selectedSearchUsers.size > 0;
+        let hasRecipients = true;
+        
+        if (isCustomMode) {
+            hasRecipients = selectedFriends.size > 0 || selectedGroups.size > 0 || selectedSearchUsers.size > 0;
+        }
         
         uploadBtn.disabled = !hasValidFiles || !hasRecipients;
     }
+    
+    // Initialize summary
+    updateSummary();
     
     // Form submission handler
     form.addEventListener('submit', function(e) {
