@@ -268,17 +268,6 @@ For questions, suggestions, or collaboration opportunities:
 
 **Project Status**: Active Development  
 **Version**: 1.0.0-beta  
-**Last Updated**: January 27, 2025
+**Last Updated**: July 27, 2025
 
-# Working:
-[![Watch the video](https://img.youtube.com/vi/qIK-vfTig6c/0.jpg)](https://youtu.be/qIK-vfTig6c)
-
-# Screenshots : 
-<img src="Screenshots/New Tab - Google Chrome 03-12-2019 19_14_36.png" height="400" width="800">
-<img src="Screenshots/New Tab - Google Chrome 03-12-2019 19_14_51.png" height="400" width="800">
-<img src="Screenshots/New Tab - Google Chrome 03-12-2019 19_14_44.png" height="400" width="800">
-<img src="Screenshots/New Tab - Google Chrome 03-12-2019 19_15_47.png" height="400" width="800">
-<img src="Screenshots/New Tab - Google Chrome 03-12-2019 19_16_14.png" height="400" width="800">
-<img src="Screenshots/Qubix - Google Chrome 04-12-2019 13_41_50.png" height="400" width="800">
-<img src="Screenshots/Qubix - Google Chrome 03-12-2019 20_48_45.png" height="400" width="800">
 
