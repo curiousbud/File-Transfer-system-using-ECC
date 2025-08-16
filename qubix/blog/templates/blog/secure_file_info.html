@@ -1,0 +1,325 @@
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Qubix - Secure File Information{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Header Section -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="h3 mb-0">
+                    <i class="fas fa-info-circle mr-2 text-primary"></i>
+                    Secure File Information
+                </h2>
+                <div class="btn-group" role="group">
+                    <a href="{% url 'secure-files-list' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        Back to Files
+                    </a>
+                    {% if is_owner %}
+                    <a href="{% url 'secure-file-delete' secure_file.id %}" class="btn btn-danger">
+                        <i class="fas fa-trash mr-2"></i>
+                        Delete File
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- File Information Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-file-alt mr-2"></i>
+                        {{ secure_file.original_filename }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>File Details</h5>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Original Filename:</strong></td>
+                                    <td>{{ secure_file.original_filename }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>File ID:</strong></td>
+                                    <td><code>{{ secure_file.file_id }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Original Size:</strong></td>
+                                    <td>{{ secure_file.original_size|filesizeformat }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Encrypted Size:</strong></td>
+                                    <td>{{ secure_file.encrypted_size|filesizeformat }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>File Hash:</strong></td>
+                                    <td><code class="text-muted">{{ secure_file.file_hash|truncatechars:20 }}...</code></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Encryption Details</h5>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Algorithm:</strong></td>
+                                    <td>
+                                        <span class="badge badge-success">{{ secure_file.encryption_algorithm }}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Curve:</strong></td>
+                                    <td>{{ secure_file.curve_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Chunked:</strong></td>
+                                    <td>
+                                        {% if secure_file.is_chunked %}
+                                            <span class="badge badge-info">Yes</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">No</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Uploaded By:</strong></td>
+                                    <td>
+                                        <a href="{% url 'user-posts' secure_file.uploaded_by.username %}" class="text-decoration-none">
+                                            {{ secure_file.uploaded_by.username }}
+                                        </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Upload Date:</strong></td>
+                                    <td>{{ secure_file.uploaded_at|date:"M d, Y \a\t g:i A" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Access Statistics -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar mr-2"></i>
+                        Access Statistics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h3 class="text-primary">{{ secure_file.access_count }}</h3>
+                                <p class="text-muted">Total Access Count</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h3 class="text-success">{{ access_records.count }}</h3>
+                                <p class="text-muted">Shared With</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                {% if secure_file.last_accessed %}
+                                <h6 class="text-info">{{ secure_file.last_accessed|date:"M d, Y" }}</h6>
+                                <p class="text-muted">Last Accessed</p>
+                                {% else %}
+                                <h6 class="text-muted">Never</h6>
+                                <p class="text-muted">Last Accessed</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Status -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-shield-alt mr-2"></i>
+                        File Status
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> 
+                                {% if secure_file.is_active %}
+                                    <span class="badge badge-success">Active</span>
+                                {% else %}
+                                    <span class="badge badge-danger">Inactive</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Expiry Date:</strong> 
+                                {% if secure_file.expiry_date %}
+                                    {{ secure_file.expiry_date|date:"M d, Y \a\t g:i A" }}
+                                    {% if secure_file.expiry_date < now %}
+                                        <span class="badge badge-danger">Expired</span>
+                                    {% else %}
+                                        <span class="badge badge-warning">Expires Soon</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">No expiry set</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Access Records (Only for file owner) -->
+            {% if is_owner and access_records %}
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users mr-2"></i>
+                        Shared With Users
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Access Granted</th>
+                                    <th>Last Accessed</th>
+                                    <th>Access Count</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for access_record in access_records %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{{ access_record.user.profile.image.url }}" 
+                                                 alt="Avatar" 
+                                                 class="rounded-circle mr-2" 
+                                                 width="32" height="32">
+                                            <div>
+                                                <strong>{{ access_record.user.username }}</strong>
+                                                <br><small class="text-muted">{{ access_record.user.email }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ access_record.access_granted_at|date:"M d, Y" }}</td>
+                                    <td>
+                                        {% if access_record.last_accessed %}
+                                            {{ access_record.last_accessed|date:"M d, Y \a\t g:i A" }}
+                                        {% else %}
+                                            <span class="text-muted">Never</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-primary">{{ access_record.access_count }}</span>
+                                    </td>
+                                    <td>
+                                        {% if access_record.is_active %}
+                                            <span class="badge badge-success">Active</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">Revoked</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if access_record.is_active %}
+                                        <button class="btn btn-sm btn-warning" onclick="revokeAccess({{ access_record.id }})">
+                                            <i class="fas fa-ban mr-1"></i>
+                                            Revoke
+                                        </button>
+                                        {% else %}
+                                        <button class="btn btn-sm btn-success" onclick="restoreAccess({{ access_record.id }})">
+                                            <i class="fas fa-check mr-1"></i>
+                                            Restore
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% elif is_owner %}
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">File Not Shared</h5>
+                    <p class="text-muted">This file has not been shared with any users yet.</p>
+                    <a href="{% url 'secure-file-upload' %}" class="btn btn-primary">
+                        <i class="fas fa-share mr-1"></i>
+                        Share File
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- User Access Info (for non-owners) -->
+            {% if not is_owner and file_access %}
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-key mr-2"></i>
+                        Your Access Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Access Granted By:</strong> {{ file_access.access_granted_by.username }}</p>
+                            <p><strong>Access Date:</strong> {{ file_access.access_granted_at|date:"M d, Y" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Your Access Count:</strong> {{ file_access.access_count }}</p>
+                            <p><strong>Last Accessed:</strong> 
+                                {% if file_access.last_accessed %}
+                                    {{ file_access.last_accessed|date:"M d, Y \a\t g:i A" }}
+                                {% else %}
+                                    <span class="text-muted">Never</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'secure-file-download' file_access.id %}" class="btn btn-primary">
+                            <i class="fas fa-download mr-2"></i>
+                            Download File
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function revokeAccess(accessId) {
+    if (confirm('Are you sure you want to revoke access for this user?')) {
+        // Implementation for revoking access
+        // This would typically be an AJAX call to a revoke endpoint
+        console.log('Revoking access for:', accessId);
+    }
+}
+
+function restoreAccess(accessId) {
+    if (confirm('Are you sure you want to restore access for this user?')) {
+        // Implementation for restoring access
+        // This would typically be an AJAX call to a restore endpoint
+        console.log('Restoring access for:', accessId);
+    }
+}
+</script>
+{% endblock content %}

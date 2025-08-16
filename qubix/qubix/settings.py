@@ -135,3 +135,24 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = 'blog-home'
 LOGIN_URL = 'login'
 LOGOUT_REDIRECT_URL = 'login'
+
+# ============================================================================
+# QUBIX FEATURE FLAGS
+# ============================================================================
+# Control various features that can be enabled/disabled
+
+# Public File Sharing - Set to False to disable public posts
+# When disabled, users can only share with friends or keep posts private
+ENABLE_PUBLIC_SHARING = False
+
+# Anonymous Temporary Sharing - Allow non-users to access temp shares
+ENABLE_ANONYMOUS_TEMP_SHARING = True
+
+# Batch Operations - Enable/disable batch upload/download features
+ENABLE_BATCH_OPERATIONS = True
+
+# Maximum file size for uploads (in MB)
+MAX_FILE_SIZE_MB = 50
+
+# Maximum files per batch operation
+MAX_FILES_PER_BATCH = 10

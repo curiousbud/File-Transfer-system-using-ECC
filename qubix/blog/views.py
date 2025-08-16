@@ -14,6 +14,7 @@ from django.views.generic import (
 )
 from .models import Post, SecureFile, SecureFileAccess
 from users.models import Friendship, ECCKeyPair
+from .forms import PostForm, PostUpdateForm
 import operator
 from django.urls import reverse_lazy
 from django.contrib.staticfiles.views import serve
@@ -63,8 +64,8 @@ def home(request):
     
     for post in all_posts:
         if not request.user.is_authenticated:
-            # Show only public posts for anonymous users
-            if post.visibility == 'public':
+            # Show only public posts for anonymous users (if public sharing is enabled)
+            if post.visibility == 'public' and getattr(settings, 'ENABLE_PUBLIC_SHARING', False):
                 accessible_posts.append(post.pk)
         else:
             if post.can_user_access(request.user):
@@ -264,8 +265,8 @@ class PostDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
 
 class PostCreateView(LoginRequiredMixin, CreateView):
     model = Post
+    form_class = PostForm
     template_name = 'blog/post_form.html'
-    fields = ['title', 'content', 'file', 'visibility']
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -353,8 +354,8 @@ class PostCreateView(LoginRequiredMixin, CreateView):
 
 class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Post
+    form_class = PostUpdateForm
     template_name = 'blog/post_form.html'
-    fields = ['title', 'content', 'file', 'visibility']
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -470,9 +471,9 @@ def about(request):
 
 
 @login_required
-def secure_file_download(request, pk):
+def post_file_download(request, pk):
     """
-    Secure file download view that requires authentication and friend access
+    Download file attached to a blog post (for legacy posts)
     """
     try:
         post = get_object_or_404(Post, pk=pk)
@@ -521,7 +522,7 @@ def secure_file_upload(request):
     if request.method == 'POST':
         try:
             # Get uploaded file
-            uploaded_file = request.FILES.get('secure_file')
+            uploaded_file = request.FILES.get('file')
             if not uploaded_file:
                 messages.error(request, "No file selected.")
                 return redirect('secure-file-upload')
@@ -538,6 +539,13 @@ def secure_file_upload(request):
             selected_groups = request.POST.getlist('share_with_groups')
             selected_search_users = request.POST.getlist('share_with_search_users')
             algorithm = request.POST.get('encryption_algorithm', 'AES-256-GCM')
+            
+            # Map algorithm names to model choices
+            algorithm_mapping = {
+                'AES-256-GCM': 'ECC-AES-256-GCM',
+                'ChaCha20-Poly1305': 'ECC-AES-256-GCM'  # Map ChaCha20 to AES for now as model doesn't support ChaCha20
+            }
+            model_algorithm = algorithm_mapping.get(algorithm, 'ECC-AES-256-GCM')
             
             # Collect all recipient users
             recipients = set()
@@ -572,16 +580,21 @@ def secure_file_upload(request):
             
             # Validate file
             validation = file_handler.validate_file(file_data, uploaded_file.name)
-            if not validation['is_valid']:
-                messages.error(request, f"File validation failed: {validation['error']}")
+            if not validation['valid']:
+                error_messages = ', '.join(validation['errors']) if validation['errors'] else 'Unknown validation error'
+                messages.error(request, f"File validation failed: {error_messages}")
                 return redirect('secure-file-upload')
             
-            # Create SecureFile record
+            # Create SecureFile record (we'll update it later with encryption details)
             secure_file = SecureFile.objects.create(
                 original_filename=uploaded_file.name,
-                file_size=len(file_data),
-                file_hash=validation['file_hash'],
-                encryption_algorithm=algorithm,
+                original_size=len(file_data),
+                encrypted_size=0,  # Will be updated after encryption
+                file_hash=validation['file_info']['file_hash'],
+                encryption_algorithm=model_algorithm,
+                encrypted_file_path='',  # Will be updated after encryption
+                digital_signature='',  # Will be updated after encryption
+                metadata='{}',  # Will be updated with actual metadata
                 uploaded_by=request.user
             )
             
@@ -670,7 +683,7 @@ def secure_file_upload(request):
     context = {
         'friends': friends,
         'user_groups': valid_groups,
-        'supported_algorithms': ['AES-256-GCM', 'ChaCha20-Poly1305']
+        'supported_algorithms': ['AES-256-GCM']  # Only show what's actually supported by the model
     }
     return render(request, 'blog/secure_file_upload.html', context)
 
@@ -1239,165 +1252,6 @@ def batch_operation_status(request):
         return redirect('blog-home')
 
 
-@login_required 
-def batch_upload(request):
-    """Batch file upload with multiple recipients"""
-    if not CRYPTO_AVAILABLE:
-        messages.error(request, "Cryptographic features are not available.")
-        return redirect('blog-home')
-    
-    # Get user's friends with active ECC keys
-    friends = []
-    try:
-        from django.contrib.auth.models import User
-        from users.models import ECCKeyPair
-        
-        # Get all users with active ECC keys who are friends
-        potential_friends = User.objects.exclude(id=request.user.id)
-        for user in potential_friends:
-            try:
-                ecc_keypair = ECCKeyPair.objects.get(user=user, is_active=True)
-                friends.append(user)
-            except ECCKeyPair.DoesNotExist:
-                continue
-                
-    except Exception as e:
-        logger.error(f"Error loading friends list: {e}")
-    
-    if request.method == 'POST':
-        try:
-            # Import batch operations
-            from crypto.batch_operations import BatchOperations
-            
-            # Get form data
-            files = request.FILES.getlist('batch_files')
-            friend_ids = request.POST.getlist('friends')
-            algorithm = request.POST.get('algorithm', 'AES-256-GCM')
-            key_password = request.POST.get('key_password')
-            
-            if not files:
-                messages.error(request, "No files selected for upload.")
-                return redirect('batch-upload')
-            
-            if not friend_ids:
-                messages.error(request, "Please select at least one friend to share with.")
-                return redirect('batch-upload')
-            
-            # Get recipient users
-            recipients = User.objects.filter(id__in=friend_ids)
-            
-            # Perform batch upload
-            batch_ops = BatchOperations()
-            result = batch_ops.batch_encrypt_files(
-                files=files,
-                sender=request.user,
-                recipients=list(recipients),
-                key_password=key_password,
-                algorithm=algorithm
-            )
-            
-            if result['success']:
-                messages.success(request, 
-                    f"Successfully uploaded {result['processed_count']} files. "
-                    f"Shared with {len(recipients)} recipients.")
-                return redirect('secure-files-list')
-            else:
-                messages.error(request, f"Batch upload failed: {result['error']}")
-                
-        except Exception as e:
-            logger.error(f"Batch upload error: {e}")
-            messages.error(request, f"Upload failed: {str(e)}")
-    
-    # Configuration for JavaScript
-    config_json = {
-        'max_file_size_mb': 50,
-        'max_files_per_batch': 10,
-        'max_batch_size_mb': 200
-    }
-    
-    context = {
-        'friends': friends,
-        'supported_algorithms': ['AES-256-GCM', 'ChaCha20-Poly1305'],
-        'max_file_size_mb': config_json['max_file_size_mb'],
-        'max_files_per_batch': config_json['max_files_per_batch'], 
-        'max_batch_size_mb': config_json['max_batch_size_mb'],
-        'config_json': config_json
-    }
-    
-    return render(request, 'blog/batch_file_upload.html', context)
-
-
-@login_required
-def batch_download(request):
-    """Batch file download interface"""
-    if not CRYPTO_AVAILABLE:
-        messages.error(request, "Cryptographic features are not available.")
-        return redirect('blog-home')
-    
-    try:
-        # Get user's accessible files
-        user_files = SecureFile.objects.filter(uploaded_by=request.user)
-        shared_files = SecureFile.objects.filter(
-            securefileaccess__user=request.user
-        ).exclude(uploaded_by=request.user)
-        
-        all_files = list(user_files) + list(shared_files)
-        
-        if request.method == 'POST':
-            # Process batch download
-            selected_file_ids = request.POST.getlist('selected_files')
-            key_password = request.POST.get('key_password')
-            
-            if not selected_file_ids:
-                messages.error(request, "No files selected for download.")
-                return redirect('batch-download')
-            
-            # Import batch operations
-            from crypto.batch_operations import BatchOperations
-            
-            # Get selected files
-            selected_files = SecureFile.objects.filter(
-                id__in=selected_file_ids
-            )
-            
-            # Perform batch download
-            batch_ops = BatchOperations()
-            result = batch_ops.batch_decrypt_files(
-                files=list(selected_files),
-                user=request.user,
-                key_password=key_password
-            )
-            
-            if result['success']:
-                # Create ZIP file response
-                import zipfile
-                import io
-                from django.http import HttpResponse
-                
-                zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                    for file_data in result['decrypted_files']:
-                        zip_file.writestr(file_data['filename'], file_data['content'])
-                
-                response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
-                response['Content-Disposition'] = 'attachment; filename="batch_download.zip"'
-                return response
-            else:
-                messages.error(request, f"Batch download failed: {result['error']}")
-        
-        context = {
-            'files': all_files,
-            'max_batch_size': 100  # MB
-        }
-        
-        return render(request, 'blog/batch_file_download.html', context)
-        
-    except Exception as e:
-        logger.error(f"Batch download error: {e}")
-        messages.error(request, f"Error loading files: {str(e)}")
-        return redirect('blog-home')
-
-
 # API Views
 
 @login_required
@@ -1461,3 +1315,242 @@ def search_users_api(request):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ============================================================================
+# TEMPORARY SHARING FEATURE - Inspired by SecretDrop.io
+# ============================================================================
+
+@login_required  
+def create_temporary_share(request):
+    """
+    Create a temporary anonymous sharing link for a file
+    """
+    if not CRYPTO_AVAILABLE:
+        messages.error(request, "Cryptographic features are not available.")
+        return redirect('blog-home')
+    
+    if request.method == 'POST':
+        try:
+            from .models import TemporaryFileShare
+            import uuid
+            import os
+            from datetime import timedelta
+            
+            # Get uploaded file
+            uploaded_file = request.FILES.get('temp_file')
+            if not uploaded_file:
+                messages.error(request, "No file selected.")
+                return redirect('create-temp-share')
+            
+            # Get expiration settings
+            expiry_hours = int(request.POST.get('expiry_hours', 24))
+            max_downloads = int(request.POST.get('max_downloads', 1))
+            password_protected = request.POST.get('password_protected') == 'on'
+            share_password = request.POST.get('share_password', '')
+            
+            # Validate settings
+            if expiry_hours > 168:  # Max 7 days
+                expiry_hours = 168
+            if max_downloads > 100:  # Max 100 downloads
+                max_downloads = 100
+            
+            # Generate unique share token
+            share_token = str(uuid.uuid4())
+            
+            # Read and validate file
+            file_data = uploaded_file.read()
+            if len(file_data) > 50 * 1024 * 1024:  # 50MB limit for temp shares
+                messages.error(request, "File too large for temporary sharing (max 50MB).")
+                return redirect('create-temp-share')
+            
+            # Client-side encryption preparation (generate ephemeral key pair)
+            from crypto.ecc_manager import ECCManager
+            from crypto.curves import get_curve_by_name
+            
+            curve = get_curve_by_name('P-256')
+            ecc_manager = ECCManager(curve)
+            ephemeral_private, ephemeral_public = ecc_manager.generate_key_pair()
+            
+            # Encrypt file with AES-GCM using a random key
+            from crypto.hybrid_encryption import HybridEncryption
+            hybrid = HybridEncryption()
+            
+            # Use ephemeral keys for encryption
+            encrypted_package = hybrid.encrypt_file_for_user(
+                file_data, 
+                ephemeral_public, 
+                ephemeral_private, 
+                uploaded_file.name
+            )
+            
+            # Serialize keys for storage
+            private_key_pem = ecc_manager.serialize_private_key(ephemeral_private)
+            public_key_pem = ecc_manager.serialize_public_key(ephemeral_public)
+            
+            # Calculate expiry date
+            expiry_date = timezone.now() + timedelta(hours=expiry_hours)
+            
+            # Create temporary share record
+            temp_share = TemporaryFileShare.objects.create(
+                token=share_token,
+                uploader=request.user,
+                original_filename=uploaded_file.name,
+                file_size=len(file_data),
+                encrypted_data=encrypted_package,
+                ephemeral_private_key=private_key_pem.decode('utf-8'),
+                ephemeral_public_key=public_key_pem.decode('utf-8'),
+                expires_at=expiry_date,
+                max_downloads=max_downloads,
+                password_protected=password_protected,
+                share_password=share_password if password_protected else '',
+                algorithm='AES-256-GCM'
+            )
+            
+            # Generate share URLs
+            share_url = request.build_absolute_uri(f'/temp-share/{share_token}/')
+            
+            messages.success(request, f"Temporary share created! Link expires in {expiry_hours} hours.")
+            
+            context = {
+                'temp_share': temp_share,
+                'share_url': share_url,
+                'expiry_hours': expiry_hours,
+                'max_downloads': max_downloads
+            }
+            return render(request, 'blog/temp_share_created.html', context)
+            
+        except Exception as e:
+            messages.error(request, f"Failed to create temporary share: {str(e)}")
+            return redirect('create-temp-share')
+    
+    # GET request - show form
+    context = {
+        'max_file_size_mb': 50,
+        'default_expiry_hours': 24
+    }
+    return render(request, 'blog/create_temp_share.html', context)
+
+
+def temp_share_access(request, token):
+    """
+    Access a temporary shared file (anonymous access allowed)
+    """
+    # Check if anonymous temporary sharing is enabled
+    if not getattr(settings, 'ENABLE_ANONYMOUS_TEMP_SHARING', True):
+        if not request.user.is_authenticated:
+            messages.error(request, "You must be logged in to access shared files.")
+            return redirect('login')
+    
+    try:
+        from .models import TemporaryFileShare
+        
+        # Get temporary share
+        temp_share = get_object_or_404(TemporaryFileShare, token=token, is_active=True)
+        
+        # Check if expired
+        if temp_share.expires_at < timezone.now():
+            temp_share.is_active = False
+            temp_share.save()
+            raise Http404("Share link has expired")
+        
+        # Check if max downloads reached
+        if temp_share.download_count >= temp_share.max_downloads:
+            temp_share.is_active = False
+            temp_share.save()
+            raise Http404("Download limit reached")
+        
+        if request.method == 'POST':
+            # Handle password if protected
+            if temp_share.password_protected:
+                provided_password = request.POST.get('share_password', '')
+                if provided_password != temp_share.share_password:
+                    messages.error(request, "Incorrect password")
+                    return render(request, 'blog/temp_share_access.html', {
+                        'temp_share': temp_share,
+                        'password_required': True
+                    })
+            
+            # Decrypt and serve file
+            try:
+                from crypto.hybrid_encryption import HybridEncryption
+                from crypto.ecc_manager import ECCManager
+                from crypto.curves import get_curve_by_name
+                
+                # Reconstruct ephemeral keys
+                curve = get_curve_by_name('P-256')
+                ecc_manager = ECCManager(curve)
+                
+                private_key = ecc_manager.deserialize_private_key(
+                    temp_share.ephemeral_private_key.encode('utf-8')
+                )
+                public_key = ecc_manager.deserialize_public_key(
+                    temp_share.ephemeral_public_key.encode('utf-8')
+                )
+                
+                # Decrypt file
+                hybrid = HybridEncryption()
+                decrypted_data = hybrid.decrypt_file_for_user(
+                    temp_share.encrypted_data, 
+                    public_key, 
+                    private_key
+                )
+                
+                # Update download count
+                temp_share.download_count += 1
+                temp_share.last_accessed = timezone.now()
+                temp_share.save()
+                
+                # Serve decrypted file
+                response = HttpResponse(
+                    decrypted_data,
+                    content_type='application/octet-stream'
+                )
+                response['Content-Disposition'] = f'attachment; filename="{temp_share.original_filename}"'
+                
+                return response
+                
+            except Exception as e:
+                raise Http404("Error decrypting file")
+        
+        # GET request - show access page
+        context = {
+            'temp_share': temp_share,
+            'password_required': temp_share.password_protected,
+            'downloads_remaining': temp_share.max_downloads - temp_share.download_count,
+            'expires_in_hours': (temp_share.expires_at - timezone.now()).total_seconds() / 3600
+        }
+        return render(request, 'blog/temp_share_access.html', context)
+        
+    except Exception as e:
+        raise Http404("Share not found or expired")
+
+
+@login_required
+def list_temp_shares(request):
+    """
+    List user's temporary shares
+    """
+    try:
+        from .models import TemporaryFileShare
+        
+        # Get user's temporary shares
+        temp_shares = TemporaryFileShare.objects.filter(
+            uploader=request.user
+        ).order_by('-created_at')
+        
+        # Clean up expired shares
+        expired_shares = temp_shares.filter(
+            expires_at__lt=timezone.now(),
+            is_active=True
+        )
+        expired_shares.update(is_active=False)
+        
+        context = {
+            'temp_shares': temp_shares
+        }
+        return render(request, 'blog/temp_shares_list.html', context)
+        
+    except Exception as e:
+        messages.error(request, f"Error loading temporary shares: {str(e)}")
+        return redirect('blog-home')

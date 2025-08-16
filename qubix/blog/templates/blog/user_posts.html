@@ -196,7 +196,7 @@
                                 <small class="font-weight-bold">Attachment</small><br>
                                 <small class="text-muted">{{ post.file.name }}</small>
                             </div>
-                            <a href="{% url 'secure-download' post.pk %}" class="btn btn-sm btn-outline-primary">
+                            <a href="{% url 'post-file-download' post.pk %}" class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-download"></i>
                             </a>
                         </div>

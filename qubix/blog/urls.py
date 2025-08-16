@@ -17,7 +17,7 @@ urlpatterns = [
     path('post/new/', PostCreateView.as_view(), name='post-create'),
     path('post/<int:pk>/update/', PostUpdateView.as_view(), name='post-update'),
     path('post/<int:pk>/delete/', PostDeleteView.as_view(), name='post-delete'),
-    path('download/<int:pk>/', views.secure_file_download, name='secure-download'),
+    path('download/<int:pk>/', views.post_file_download, name='post-file-download'),
     path('search/', views.search, name='search'),
     path('about/', views.about, name='blog-about'),
     
@@ -33,6 +33,11 @@ urlpatterns = [
     path('batch/upload/', views.batch_file_upload, name='batch-upload'),
     path('batch/download/', views.batch_file_download, name='batch-download'),
     path('batch/status/', views.batch_operation_status, name='batch-status'),
+    
+    # Temporary Sharing Feature (Anonymous Access)
+    path('temp-share/create/', views.create_temporary_share, name='create-temp-share'),
+    path('temp-share/<str:token>/', views.temp_share_access, name='temp-share-access'),
+    path('temp-shares/', views.list_temp_shares, name='temp-shares-list'),
     
     # API endpoints
     path('api/search-users/', views.search_users_api, name='search-users-api'),

@@ -1,5 +1,7 @@
 {% extends "blog/base.html" %}
-{% block content %}
+{% b            <a href="{% url 'post-file-download' object.pk %}"  download class="text-dark"><h5>{{ object.file }}</h5></a>
+        {% else %}
+            <a href="{% url 'post-file-download' object.pk %}"  download class="text-dark"><h5>{{ object.file }}</h5></a>k content %}
 <div class="jumbotron mt-3 shadow-lg">
 <article class="media content-section shadow ">
    <a href="{{ object.author.profile.image.url }} " target="_blank"> <img src="{{ object.author.profile.image.url }}  " alt="" class="article-img rounded-circle img-thumbnail img-fluid">
@@ -12,7 +14,7 @@
         </div>
         {% if object.author != user %}
           <div class="form-group mt-0 pt-0 d-flex justify-content-end">          
-            <a href="{% url 'secure-download' object.pk %}" download class="btn btn-primary flex-last" type="submit"><i class="fas fa-download"></i> Download</a>
+            <a href="{% url 'post-file-download' object.pk %}" download class="btn btn-primary flex-last" type="submit"><i class="fas fa-download"></i> Download</a>
           </div>
         {% endif %}
         <hr>
@@ -26,17 +28,17 @@
       <div>
         {% if object.file %}
           {% if object.extension == '.jpg' or object.extension == 'jpeg' or object.extension == 'png' %}
-            <a href="{% url 'secure-download' object.pk %}"  download ><img src="{{ object.file.url }}" alt="" class="img-fluid "></a>
-            <a href="{% url 'secure-download' object.pk %}"  download class="text-dark"><h5>{{ object.file }}</h5></a>
+            <a href="{% url 'post-file-download' object.pk %}"  download ><img src="{{ object.file.url }}" alt="" class="img-fluid "></a>
+            <a href="{% url 'post-file-download' object.pk %}"  download class="text-dark"><h5>{{ object.file }}</h5></a>
           {% elif object.extension == '.mp4' %}
             <div class="embed-responsive embed-responsive-16by9">
               <video id="video-1_html_api" class="vjs-tech" preload="auto" autoplay >
                 <source src="{{ object.file.url }}" type="video/mp4" class="embed-responsive">
               </video>
             </div>
-            <a href="{% url 'secure-download' object.pk %}"  download class="text-dark"><h5>{{ object.file }}</h5></a>
+            <a href="{% url 'post-file-download' object.pk %}"  download class="text-dark"><h5>{{ object.file }}</h5></a>
           {% else %}
-            <a href="{% url 'secure-download' object.pk %}"  download class="text-dark"><h5>{{ object.file }}</h5></a>
+            <a href="{% url 'post-file-download' object.pk %}"  download class="text-dark"><h5>{{ object.file }}</h5></a>
           {% endif %}
         {% endif %}
       </div>

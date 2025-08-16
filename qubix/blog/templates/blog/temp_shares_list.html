@@ -1,0 +1,204 @@
+{% extends "blog/base.html" %}
+
+{% block title %}Qubix - My Temporary Shares{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-clock mr-2 text-warning"></i>
+            My Temporary Shares
+        </h2>
+        <a href="{% url 'create-temp-share' %}" class="btn btn-warning">
+            <i class="fas fa-plus mr-2"></i>
+            Create New Share
+        </a>
+    </div>
+
+    {% if temp_shares %}
+        <div class="row">
+            {% for share in temp_shares %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 {% if not share.is_active or share.is_expired %}border-secondary{% elif share.downloads_remaining <= 1 %}border-warning{% else %}border-success{% endif %}">
+                    <div class="card-header {% if not share.is_active or share.is_expired %}bg-secondary text-white{% elif share.downloads_remaining <= 1 %}bg-warning text-dark{% else %}bg-success text-white{% endif %}">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-file mr-1"></i>
+                            {{ share.original_filename|truncatechars:30 }}
+                        </h6>
+                        <small>
+                            {% if not share.is_active %}
+                                <i class="fas fa-ban mr-1"></i>Deactivated
+                            {% elif share.is_expired %}
+                                <i class="fas fa-clock mr-1"></i>Expired
+                            {% elif share.downloads_remaining <= 0 %}
+                                <i class="fas fa-download mr-1"></i>Download limit reached
+                            {% else %}
+                                <i class="fas fa-check-circle mr-1"></i>Active
+                            {% endif %}
+                        </small>
+                    </div>
+                    
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <strong>Size:</strong> {{ share.file_size|filesizeformat }}<br>
+                            <strong>Algorithm:</strong> {{ share.algorithm }}<br>
+                            <strong>Created:</strong> {{ share.created_at|date:"M d, Y H:i" }}
+                        </div>
+                        
+                        <div class="mb-2">
+                            <strong>Downloads:</strong> {{ share.download_count }}/{{ share.max_downloads }}<br>
+                            {% if share.password_protected %}
+                                <strong>Protection:</strong> <span class="text-warning">Password</span><br>
+                            {% else %}
+                                <strong>Protection:</strong> <span class="text-muted">None</span><br>
+                            {% endif %}
+                            <strong>Expires:</strong> 
+                            {% if share.is_expired %}
+                                <span class="text-danger">Expired</span>
+                            {% else %}
+                                {{ share.expires_at|date:"M d, Y H:i" }}
+                                <br><small class="text-muted">
+                                    ({{ share.hours_until_expiry|floatformat:0 }}h remaining)
+                                </small>
+                            {% endif %}
+                        </div>
+                        
+                        {% if share.last_accessed %}
+                        <div class="mb-2">
+                            <strong>Last Access:</strong> {{ share.last_accessed|date:"M d, Y H:i" }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="card-footer">
+                        {% if share.can_download %}
+                            <div class="input-group input-group-sm mb-2">
+                                <input type="text" 
+                                       class="form-control" 
+                                       value="{{ request.build_absolute_uri }}{% url 'temp-share-access' share.token %}" 
+                                       readonly 
+                                       id="link-{{ share.id }}">
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary" 
+                                            type="button" 
+                                            onclick="copyShareLink('{{ share.id }}')">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            {% if share.can_download %}
+                                <a href="{{ request.build_absolute_uri }}{% url 'temp-share-access' share.token %}" 
+                                   class="btn btn-primary" 
+                                   target="_blank">
+                                    <i class="fas fa-external-link-alt"></i> View
+                                </a>
+                            {% endif %}
+                            <button class="btn btn-secondary" 
+                                    onclick="showShareDetails('{{ share.token|slice:":8" }}', '{{ share.original_filename }}', '{{ share.created_at|date:"M d, Y H:i" }}', '{{ share.algorithm }}')">
+                                <i class="fas fa-info"></i> Details
+                            </button>
+                            {% if share.is_active and not share.is_expired %}
+                                <button class="btn btn-warning" 
+                                        onclick="deactivateShare('{{ share.id }}')">
+                                    <i class="fas fa-ban"></i> Deactivate
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No Temporary Shares</h4>
+            <p class="text-muted">You haven't created any temporary shares yet.</p>
+            <a href="{% url 'create-temp-share' %}" class="btn btn-warning btn-lg">
+                <i class="fas fa-plus mr-2"></i>
+                Create Your First Share
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Share Details Modal -->
+<div class="modal fade" id="shareDetailsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Share Details
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="shareDetailsContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyShareLink(shareId) {
+    const linkInput = document.getElementById('link-' + shareId);
+    linkInput.select();
+    linkInput.setSelectionRange(0, 99999);
+    
+    try {
+        document.execCommand('copy');
+        // Show success feedback
+        const button = event.target.closest('button');
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i>';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 1500);
+    } catch (err) {
+        alert('Failed to copy link. Please copy manually.');
+    }
+}
+
+function showShareDetails(token, filename, created, algorithm) {
+    const content = `
+        <div class="row">
+            <div class="col-sm-4"><strong>Filename:</strong></div>
+            <div class="col-sm-8">${filename}</div>
+        </div>
+        <div class="row">
+            <div class="col-sm-4"><strong>Token:</strong></div>
+            <div class="col-sm-8">${token}...</div>
+        </div>
+        <div class="row">
+            <div class="col-sm-4"><strong>Created:</strong></div>
+            <div class="col-sm-8">${created}</div>
+        </div>
+        <div class="row">
+            <div class="col-sm-4"><strong>Algorithm:</strong></div>
+            <div class="col-sm-8">${algorithm}</div>
+        </div>
+    `;
+    
+    document.getElementById('shareDetailsContent').innerHTML = content;
+    $('#shareDetailsModal').modal('show');
+}
+
+function deactivateShare(shareId) {
+    if (confirm('Are you sure you want to deactivate this share? This action cannot be undone.')) {
+        // In a real implementation, you would make an AJAX call to deactivate
+        alert('Deactivation feature will be implemented in the next update.');
+    }
+}
+</script>
+{% endblock content %}

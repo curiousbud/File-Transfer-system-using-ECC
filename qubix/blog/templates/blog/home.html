@@ -443,10 +443,8 @@
                             <small class="text-muted">{{ post.date_posted|date:"M d, Y \a\t g:i A" }}</small>
                         </div>
                         <div>
-                            <span class="badge badge-{{ post.visibility|yesno:'success,warning,danger' }}">
-                                {% if post.visibility == 'public' %}
-                                    <i class="fas fa-globe mr-1"></i>Public
-                                {% elif post.visibility == 'friends' %}
+                            <span class="badge badge-{{ post.visibility|yesno:'primary,warning,danger' }}">
+                                {% if post.visibility == 'friends' %}
                                     <i class="fas fa-users mr-1"></i>Friends
                                 {% else %}
                                     <i class="fas fa-lock mr-1"></i>Private
@@ -467,7 +465,7 @@
                     <div class="alert alert-info">
                         <i class="fas fa-paperclip mr-2"></i>
                         <strong>Attachment:</strong> {{ post.file.name|basename }}
-                        <a href="{% url 'secure-download' post.pk %}" class="btn btn-sm btn-outline-primary ml-2">
+                        <a href="{% url 'post-file-download' post.pk %}" class="btn btn-sm btn-outline-primary ml-2">
                             <i class="fas fa-download mr-1"></i>
                             Download
                         </a>

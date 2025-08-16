@@ -1,0 +1,168 @@
+{% extends "blog/base.html" %}
+
+{% block title %}Qubix - Temporary Share Created{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-success">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        Temporary Share Created Successfully!
+                    </h3>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Success Message -->
+                    <div class="alert alert-success" role="alert">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-share-alt mr-2"></i>
+                            Share Link Ready
+                        </h5>
+                        <p class="mb-0">
+                            Your file <strong>{{ temp_share.original_filename }}</strong> has been encrypted and is ready for sharing.
+                        </p>
+                    </div>
+
+                    <!-- Share Link -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            <strong>Share Link (Copy & Send)</strong>
+                        </label>
+                        <div class="input-group">
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="shareLink" 
+                                   value="{{ share_url }}" 
+                                   readonly>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard()">
+                                    <i class="fas fa-copy"></i> Copy
+                                </button>
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">
+                            Send this link to anyone you want to share the file with. No account required.
+                        </small>
+                    </div>
+
+                    <!-- Share Details -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        Share Details
+                                    </h6>
+                                    <ul class="list-unstyled mb-0">
+                                        <li><strong>File:</strong> {{ temp_share.original_filename }}</li>
+                                        <li><strong>Size:</strong> {{ temp_share.file_size|filesizeformat }}</li>
+                                        <li><strong>Algorithm:</strong> {{ temp_share.algorithm }}</li>
+                                        <li><strong>Token:</strong> {{ temp_share.token|slice:":8" }}...</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-clock mr-1"></i>
+                                        Access Control
+                                    </h6>
+                                    <ul class="list-unstyled mb-0">
+                                        <li><strong>Expires In:</strong> {{ expiry_hours }} hours</li>
+                                        <li><strong>Max Downloads:</strong> {{ max_downloads }}</li>
+                                        <li><strong>Downloads Used:</strong> {{ temp_share.download_count }}</li>
+                                        <li><strong>Password Protected:</strong> 
+                                            {% if temp_share.password_protected %}
+                                                <span class="text-success">Yes</span>
+                                            {% else %}
+                                                <span class="text-warning">No</span>
+                                            {% endif %}
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if temp_share.password_protected %}
+                    <!-- Password Information -->
+                    <div class="alert alert-warning mt-3" role="alert">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-lock mr-1"></i>
+                            Password Protection Enabled
+                        </h6>
+                        <p class="mb-0">
+                            Recipients will need the password you set to access this file. 
+                            Make sure to share the password securely through a different channel.
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Security Information -->
+                    <div class="alert alert-info mt-3" role="alert">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-shield-alt mr-1"></i>
+                            Security Features
+                        </h6>
+                        <small>
+                            • File encrypted with ephemeral ECC + AES-256-GCM<br>
+                            • Zero-knowledge: Server cannot decrypt your file<br>
+                            • Automatic expiry: Link becomes permanently inaccessible after {{ expiry_hours }} hours<br>
+                            • Download limits: Link deactivates after {{ max_downloads }} download{{ max_downloads|pluralize }}<br>
+                            • No registration required for recipients
+                        </small>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="text-center mt-4">
+                        <a href="{% url 'create-temp-share' %}" class="btn btn-warning">
+                            <i class="fas fa-plus mr-2"></i>
+                            Create Another Share
+                        </a>
+                        <a href="{% url 'temp-shares-list' %}" class="btn btn-secondary ml-2">
+                            <i class="fas fa-list mr-2"></i>
+                            View All Shares
+                        </a>
+                        <a href="{% url 'blog-home' %}" class="btn btn-outline-secondary ml-2">
+                            <i class="fas fa-home mr-2"></i>
+                            Back to Home
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard() {
+    const shareLink = document.getElementById('shareLink');
+    shareLink.select();
+    shareLink.setSelectionRange(0, 99999); // For mobile devices
+    
+    try {
+        document.execCommand('copy');
+        // Change button text temporarily
+        const button = event.target.closest('button');
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+    } catch (err) {
+        alert('Failed to copy link. Please copy manually.');
+    }
+}
+</script>
+{% endblock content %}

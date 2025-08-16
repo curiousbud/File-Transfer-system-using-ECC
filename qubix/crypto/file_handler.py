@@ -8,6 +8,7 @@ including secure file upload, download, and management.
 import os
 import mimetypes
 import uuid
+import hashlib
 from typing import Dict, Any, Optional, List
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -80,6 +81,9 @@ class SecureFileHandler:
         # Detect MIME type
         mime_type, _ = mimetypes.guess_type(filename)
         
+        # Calculate file hash for integrity checking
+        file_hash = hashlib.sha256(file_data).hexdigest()
+        
         # Basic file info
         validation_result['file_info'] = {
             'filename': filename,
@@ -87,7 +91,8 @@ class SecureFileHandler:
             'extension': file_extension,
             'mime_type': mime_type,
             'size_mb': round(file_size / (1024 * 1024), 2),
-            'category': self._get_file_category(file_extension)
+            'category': self._get_file_category(file_extension),
+            'file_hash': file_hash
         }
         
         return validation_result

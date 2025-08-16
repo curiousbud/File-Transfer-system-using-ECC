@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.conf import settings
 import os
 import json
 import uuid
@@ -24,6 +25,20 @@ class Post(models.Model):
     def __str__(self):
         return self.title
 
+    @classmethod
+    def get_allowed_visibility_choices(cls):
+        """Return visibility choices based on feature flags"""
+        choices = [
+            ('friends', 'Friends Only'),
+            ('private', 'Private'),
+        ]
+        
+        # Only add public option if enabled in settings
+        if getattr(settings, 'ENABLE_PUBLIC_SHARING', False):
+            choices.insert(0, ('public', 'Public'))
+        
+        return choices
+
     def extension(self):
         name, extension = os.path.splitext(self.file.name)
         return extension
@@ -33,7 +48,8 @@ class Post(models.Model):
 
     def can_user_access(self, user):
         """Check if a user can access this post based on visibility settings and specific shares"""
-        if self.visibility == 'public':
+        # Check if public sharing is enabled and post is public
+        if self.visibility == 'public' and getattr(settings, 'ENABLE_PUBLIC_SHARING', False):
             return True
         elif self.visibility == 'private':
             return user == self.author
@@ -41,6 +57,13 @@ class Post(models.Model):
             if user == self.author:
                 return True
             # Import here to avoid circular imports
+            from users.models import Friendship
+            return Friendship.are_friends(user, self.author)
+        
+        # If public sharing is disabled but post is marked public, treat as friends-only
+        if self.visibility == 'public' and not getattr(settings, 'ENABLE_PUBLIC_SHARING', False):
+            if user == self.author:
+                return True
             from users.models import Friendship
             return Friendship.are_friends(user, self.author)
         
@@ -311,3 +334,73 @@ class PostGroupShare(models.Model):
     
     def __str__(self):
         return f'{self.post.title} shared with group {self.shared_with_group.name}'
+
+
+class TemporaryFileShare(models.Model):
+    """
+    Model for temporary anonymous file sharing - inspired by SecretDrop.io
+    Allows users to share files via anonymous links with expiration and download limits
+    """
+    # Basic information
+    token = models.CharField(max_length=255, unique=True, db_index=True)
+    uploader = models.ForeignKey(User, on_delete=models.CASCADE, related_name='temp_shares')
+    original_filename = models.CharField(max_length=255)
+    file_size = models.BigIntegerField()
+    
+    # Encryption data (stored as JSON for compatibility)
+    encrypted_data = models.JSONField()
+    ephemeral_private_key = models.TextField()  # PEM format
+    ephemeral_public_key = models.TextField()   # PEM format
+    algorithm = models.CharField(max_length=50, default='AES-256-GCM')
+    
+    # Access control
+    expires_at = models.DateTimeField()
+    max_downloads = models.IntegerField(default=1)
+    download_count = models.IntegerField(default=0)
+    password_protected = models.BooleanField(default=False)
+    share_password = models.CharField(max_length=255, blank=True)
+    
+    # Status tracking
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_accessed = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['token', 'is_active']),
+            models.Index(fields=['expires_at', 'is_active']),
+            models.Index(fields=['uploader', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f'Temp share: {self.original_filename} ({self.token[:8]}...)'
+    
+    @property
+    def is_expired(self):
+        """Check if the temporary share has expired"""
+        return timezone.now() > self.expires_at
+    
+    @property
+    def downloads_remaining(self):
+        """Get remaining downloads"""
+        return max(0, self.max_downloads - self.download_count)
+    
+    @property
+    def hours_until_expiry(self):
+        """Get hours until expiry (can be negative if expired)"""
+        delta = self.expires_at - timezone.now()
+        return delta.total_seconds() / 3600
+    
+    def deactivate(self):
+        """Deactivate the temporary share"""
+        self.is_active = False
+        self.save()
+    
+    def can_download(self):
+        """Check if file can still be downloaded"""
+        return (
+            self.is_active and 
+            not self.is_expired and 
+            self.download_count < self.max_downloads
+        )

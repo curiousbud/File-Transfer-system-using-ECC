@@ -1,0 +1,179 @@
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Qubix - Create Temporary Share{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-clock mr-2"></i>
+                        Create Temporary Share
+                    </h3>
+                    <p class="mb-0 mt-2 text-light">
+                        Share files anonymously with temporary links (inspired by SecretDrop.io)
+                    </p>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Feature Information -->
+                    <div class="alert alert-info" role="alert">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Anonymous Temporary Sharing
+                        </h5>
+                        <ul class="mb-0">
+                            <li><strong>Anonymous access:</strong> Recipients don't need accounts</li>
+                            <li><strong>Automatic expiry:</strong> Links expire after set time</li>
+                            <li><strong>Download limits:</strong> Control how many times file can be downloaded</li>
+                            <li><strong>Client-side encryption:</strong> Files encrypted before upload</li>
+                            <li><strong>Max file size:</strong> {{ max_file_size_mb }}MB per file</li>
+                        </ul>
+                    </div>
+
+                    <!-- Create Share Form -->
+                    <form method="post" enctype="multipart/form-data" id="tempShareForm">
+                        {% csrf_token %}
+                        
+                        <!-- File Selection -->
+                        <div class="form-group">
+                            <label for="temp_file" class="form-label">
+                                <strong>Select File</strong>
+                            </label>
+                            <input type="file" 
+                                   class="form-control-file" 
+                                   id="temp_file" 
+                                   name="temp_file" 
+                                   required>
+                            <small class="form-text text-muted">
+                                Maximum file size: {{ max_file_size_mb }}MB
+                            </small>
+                        </div>
+
+                        <!-- Expiry Settings -->
+                        <div class="form-group">
+                            <label for="expiry_hours" class="form-label">
+                                <strong>Link Expires In</strong>
+                            </label>
+                            <select class="form-control" id="expiry_hours" name="expiry_hours" required>
+                                <option value="1">1 Hour</option>
+                                <option value="6">6 Hours</option>
+                                <option value="24" selected>24 Hours (1 Day)</option>
+                                <option value="72">72 Hours (3 Days)</option>
+                                <option value="168">168 Hours (7 Days - Maximum)</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                How long the download link will remain active
+                            </small>
+                        </div>
+
+                        <!-- Download Limit -->
+                        <div class="form-group">
+                            <label for="max_downloads" class="form-label">
+                                <strong>Maximum Downloads</strong>
+                            </label>
+                            <select class="form-control" id="max_downloads" name="max_downloads" required>
+                                <option value="1" selected>1 Download (One-time)</option>
+                                <option value="5">5 Downloads</option>
+                                <option value="10">10 Downloads</option>
+                                <option value="25">25 Downloads</option>
+                                <option value="50">50 Downloads</option>
+                                <option value="100">100 Downloads (Maximum)</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                How many times the file can be downloaded before link becomes inactive
+                            </small>
+                        </div>
+
+                        <!-- Password Protection -->
+                        <div class="form-group">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="password_protected" name="password_protected">
+                                <label class="form-check-label" for="password_protected">
+                                    <strong>Password Protect</strong>
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                Require a password to access the file
+                            </small>
+                        </div>
+
+                        <!-- Password Input (Hidden by default) -->
+                        <div class="form-group" id="password_group" style="display: none;">
+                            <label for="share_password" class="form-label">
+                                <strong>Share Password</strong>
+                            </label>
+                            <input type="password" 
+                                   class="form-control" 
+                                   id="share_password" 
+                                   name="share_password"
+                                   placeholder="Enter password for accessing the file">
+                            <small class="form-text text-muted">
+                                Recipients will need this password to access the file
+                            </small>
+                        </div>
+
+                        <!-- Security Notice -->
+                        <div class="alert alert-warning" role="alert">
+                            <h6 class="alert-heading">
+                                <i class="fas fa-shield-alt mr-1"></i>
+                                Security Information
+                            </h6>
+                            <small>
+                                • Files are encrypted client-side before upload<br>
+                                • Temporary shares use ephemeral key pairs<br>
+                                • Links automatically expire and become inaccessible<br>
+                                • No server-side storage of decryption keys after expiry
+                            </small>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="form-group text-center">
+                            <button type="submit" class="btn btn-warning btn-lg">
+                                <i class="fas fa-share-alt mr-2"></i>
+                                Create Temporary Share
+                            </button>
+                            <a href="{% url 'temp-shares-list' %}" class="btn btn-secondary btn-lg ml-2">
+                                <i class="fas fa-list mr-2"></i>
+                                My Shares
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('password_protected').addEventListener('change', function() {
+    const passwordGroup = document.getElementById('password_group');
+    const passwordInput = document.getElementById('share_password');
+    
+    if (this.checked) {
+        passwordGroup.style.display = 'block';
+        passwordInput.required = true;
+    } else {
+        passwordGroup.style.display = 'none';
+        passwordInput.required = false;
+        passwordInput.value = '';
+    }
+});
+
+// File size validation
+document.getElementById('temp_file').addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) {
+        const maxSizeMB = parseInt("{{ max_file_size_mb|default:50 }}");
+        const maxSize = maxSizeMB * 1024 * 1024; // Convert MB to bytes
+        if (file.size > maxSize) {
+            alert('File too large! Maximum size is ' + maxSizeMB + 'MB');
+            this.value = '';
+        }
+    }
+});
+</script>
+{% endblock content %}
