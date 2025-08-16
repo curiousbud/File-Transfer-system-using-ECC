@@ -47,6 +47,21 @@
                 </div>
                 <div class="col-md-3">
                     <div class="card text-center">
+                                <style>
+                                /* Hide scrollbars globally for this template */
+                                html {
+                                    overflow: scroll;
+                                    overflow-x: hidden;
+                                }
+                                ::-webkit-scrollbar {
+                                    width: 0;  /* Remove scrollbar space */
+                                    background: transparent;  /* Optional: just make scrollbar invisible */
+                                }
+                                /* Optional: show position indicator in red */
+                                ::-webkit-scrollbar-thumb {
+                                    background: #FF0000;
+                                }
+                                </style>
                         <div class="card-body">
                             <i class="fas fa-share-alt fa-2x text-success mb-2"></i>
                             <h5 class="card-title">{{ shared_files }}</h5>

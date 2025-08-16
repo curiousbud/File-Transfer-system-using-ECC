@@ -4,6 +4,21 @@
 {% block title %}Qubix - Secure File Information{% endblock title %}
 
 {% block content %}
+<style>
+/* Hide scrollbars globally for this template */
+html {
+    overflow: scroll;
+    overflow-x: hidden;
+}
+::-webkit-scrollbar {
+    width: 0;  /* Remove scrollbar space */
+    background: transparent;  /* Optional: just make scrollbar invisible */
+}
+/* Optional: show position indicator in red */
+::-webkit-scrollbar-thumb {
+    background: #FF0000;
+}
+</style>
 <div class="container mt-4">
     <div class="row justify-content-center">
         <div class="col-lg-10">

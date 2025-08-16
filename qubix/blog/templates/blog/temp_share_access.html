@@ -33,6 +33,21 @@
                             <div class="col-6">
                                 <strong>Downloads Remaining</strong><br>
                                 <span class="h4 {% if downloads_remaining <= 1 %}text-warning{% else %}text-success{% endif %}">
+                                        <style>
+                                        /* Hide scrollbars globally for this template */
+                                        html {
+                                            overflow: scroll;
+                                            overflow-x: hidden;
+                                        }
+                                        ::-webkit-scrollbar {
+                                            width: 0;  /* Remove scrollbar space */
+                                            background: transparent;  /* Optional: just make scrollbar invisible */
+                                        }
+                                        /* Optional: show position indicator in red */
+                                        ::-webkit-scrollbar-thumb {
+                                            background: #FF0000;
+                                        }
+                                        </style>
                                     {{ downloads_remaining }}
                                 </span>
                             </div>

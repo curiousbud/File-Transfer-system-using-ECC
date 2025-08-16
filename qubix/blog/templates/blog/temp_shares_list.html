@@ -34,6 +34,21 @@
                                 <i class="fas fa-download mr-1"></i>Download limit reached
                             {% else %}
                                 <i class="fas fa-check-circle mr-1"></i>Active
+                            <style>
+                            /* Hide scrollbars globally for this template */
+                            html {
+                                overflow: scroll;
+                                overflow-x: hidden;
+                            }
+                            ::-webkit-scrollbar {
+                                width: 0;  /* Remove scrollbar space */
+                                background: transparent;  /* Optional: just make scrollbar invisible */
+                            }
+                            /* Optional: show position indicator in red */
+                            ::-webkit-scrollbar-thumb {
+                                background: #FF0000;
+                            }
+                            </style>
                             {% endif %}
                         </small>
                     </div>
