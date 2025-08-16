@@ -306,6 +306,7 @@
     </div>
     {% endif %}
 
+    {% if user.is_authenticated %}
     <!-- Posts Feed -->
     <div class="row">
         <div class="col-12">
@@ -314,7 +315,6 @@
                     <i class="fas fa-stream mr-2"></i>
                     {% if user.is_authenticated %}Your Feed{% else %}Latest Posts{% endif %}
                 </h4>
-                {% if user.is_authenticated %}
                 <a href="{% url 'post-create' %}" class="btn btn-primary">
                     <i class="fas fa-plus mr-1"></i>
                     Create Post
@@ -322,6 +322,7 @@
                 {% endif %}
             </div>
             
+            {% if user.is_authenticated %}
             <!-- Advanced Filters and Sorting -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -496,7 +497,7 @@
         </div>
         {% endfor %}
     </div>
-
+{% endif %}
     <!-- Enhanced Pagination -->
     {% if is_paginated %}
     <div class="row">
@@ -555,28 +556,28 @@
     {% endif %}
     
     {% else %}
-    <div class="row">
+    {% comment %} <div class="row">
         <div class="col-12">
             <div class="text-center py-5">
                 <i class="fas fa-newspaper fa-4x text-muted mb-3"></i>
-                <h4 class="text-muted">No posts available</h4>
+                {% comment %} <h4 class="text-muted">No posts available</h4>
                 <p class="text-muted">
                     {% if user.is_authenticated %}
                         Be the first to share something with the community!
                     {% else %}
                         Sign up to start sharing and viewing posts.
                     {% endif %}
-                </p>
+                </p> {% endcomment %}
                 {% if user.is_authenticated %}
                 <a href="{% url 'post-create' %}" class="btn btn-primary">
                     <i class="fas fa-plus mr-1"></i>
                     Create First Post
                 </a>
                 {% else %}
-                <a href="{% url 'register' %}" class="btn btn-primary">
+                {% comment %} <a href="{% url 'register' %}" class="btn btn-primary">
                     <i class="fas fa-user-plus mr-1"></i>
                     Get Started
-                </a>
+                </a> {% endcomment %}
                 {% endif %}
             </div>
         </div>
@@ -585,6 +586,18 @@
 </div>
 
 <style>
+html {
+    overflow: scroll;
+    overflow-x: hidden;
+}
+::-webkit-scrollbar {
+    width: 0;  /* Remove scrollbar space */
+    background: transparent;  /* Optional: just make scrollbar invisible */
+}
+/* Optional: show position indicator in red */
+::-webkit-scrollbar-thumb {
+    background: #FF0000;
+}
 .bg-gradient-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }

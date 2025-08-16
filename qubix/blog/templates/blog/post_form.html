@@ -599,6 +599,22 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+{% comment %} Hiding the scrollbar {% endcomment %}
+html {
+    overflow: scroll;
+    overflow-x: hidden;
+}
+
+::-webkit-scrollbar {
+    width: 0; {% comment %}  /* Remove scrollbar space */ {% endcomment %}
+    background: transparent;  {% comment %} /* Optional: just make scrollbar invisible */ {% endcomment %}
+}
+
+{% comment %} /* Optional: show position indicator in red */ {% endcomment %}
+::-webkit-scrollbar-thumb {
+    background: #FF0000;
+}
+
 .text-xs {
     font-size: 0.75rem;
 }
