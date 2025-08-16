@@ -249,6 +249,21 @@ For questions, suggestions, or collaboration opportunities:
 
 ---
 
+## 📚 Documentation Index
+
+| File                          | Purpose                                                      |
+|-------------------------------|--------------------------------------------------------------|
+| README.md                     | Main project overview, installation, usage, and release notes |
+| DEVELOPMENT_PROGRESS.md       | Detailed development milestones, progress, and achievements   |
+| TECHNICAL_DOCUMENTATION.md    | In-depth technical system documentation and architecture      |
+| docs/security_analysis.md     | Security analysis, cryptographic details, and threat model    |
+| docs/api_reference.md         | Full API reference and endpoint documentation                 |
+| LICENSE                       | Project license and usage terms                               |
+
+> For the latest updates, always start with README.md and follow links to deeper documentation as needed.
+
+---
+
 **Project Status**: Active Development  
 **Version**: 1.0.0-beta  
 **Last Updated**: July 27, 2025
