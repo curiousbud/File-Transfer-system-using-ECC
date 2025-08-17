@@ -348,25 +348,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 To make Qubix more portable, maintainable, and reusable, you should split major features into dedicated Django apps. Here’s a step-by-step migration plan with code snippets:
 
+
 ### 1. Identify Features to Modularize
 
 - **File Management**: Secure file upload, download, sharing, access control
-- **Temporary Sharing**: Anonymous, expiring file links
-- **Groups & Friendships**: User groups, friend requests, management
-- **Encryption & Key Management**: ECC key generation, rotation, crypto utilities
-- **Search**: Unified search for posts, users, files
-- **Audit & Logging**: Track file access, user actions, security events
+- **Quick Sharing (QShare)**: Anonymous, expiring file links
+
+
 
 ### 2. Create New Django Apps
 
 For each feature, run:
 ```bash
 python manage.py startapp files
-python manage.py startapp temp_share
-python manage.py startapp social
-python manage.py startapp keys
-python manage.py startapp search
-python manage.py startapp audit
+python manage.py startapp qshare
+# python manage.py startapp social
+# python manage.py startapp keys
+# python manage.py startapp search
+# python manage.py startapp audit
 ```
 
 ### 3. Move Code to Respective Apps
@@ -397,33 +396,35 @@ def upload_file(request):
 # files/static/files/...
 ```
 
-**Example for Temporary Sharing:**
+
+**Example for Quick Sharing (QShare):**
 ```python
-# temp_share/models.py
-class TemporaryFileShare(models.Model):
+# qshare/models.py
+class QShare(models.Model):
    file = models.ForeignKey(SecureFile, on_delete=models.CASCADE)
    token = models.CharField(max_length=64, unique=True)
    expires_at = models.DateTimeField()
    max_downloads = models.IntegerField(default=1)
 
-# temp_share/views.py
-def create_temp_share(request):
-   # ... temp share logic ...
+# qshare/views.py
+def create_qshare(request):
+   # ... qshare logic ...
    pass
 ```
 
 ### 4. Register Apps in Settings
+
 
 Add each new app to `INSTALLED_APPS` in `settings.py`:
 ```python
 INSTALLED_APPS = [
    ...
    'files',
-   'temp_share',
-   'social',
-   'keys',
-   'search',
-   'audit',
+   'qshare',
+   # 'social',
+   # 'keys',
+   # 'search',
+   # 'audit',
    ...
 ]
 ```
@@ -432,17 +433,18 @@ INSTALLED_APPS = [
 
 - Change all imports to use the new app names
 - Update template paths and static references
+
 - Refactor URLs to use app-specific `urls.py` and include them in the main `urls.py`:
 ```python
 # qubix/urls.py
 from django.urls import include, path
 urlpatterns = [
    path('files/', include('files.urls')),
-   path('share/', include('temp_share.urls')),
-   path('social/', include('social.urls')),
-   path('keys/', include('keys.urls')),
-   path('search/', include('search.urls')),
-   path('audit/', include('audit.urls')),
+   path('qshare/', include('qshare.urls')),
+   # path('social/', include('social.urls')),
+   # path('keys/', include('keys.urls')),
+   # path('search/', include('search.urls')),
+   # path('audit/', include('audit.urls')),
    ...
 ]
 ```
@@ -469,4 +471,4 @@ python manage.py migrate
 - Potential for open-source sharing of individual features
 
 ---
-**Tip:** Start with the feature that is most independent (e.g., temporary sharing or audit logging) and modularize incrementally. Always keep your main branch stable and test after each migration.
+**Tip:** Start with the feature that is most independent (e.g., quick sharing/QShare or audit logging) and modularize incrementally. Always keep your main branch stable and test after each migration.

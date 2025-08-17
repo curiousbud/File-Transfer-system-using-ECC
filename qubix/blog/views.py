@@ -12,7 +12,8 @@ from django.views.generic import (
     UpdateView,
     DeleteView
 )
-from .models import Post, SecureFile, SecureFileAccess
+from .models import Post
+from files.models import SecureFile, SecureFileAccess
 from users.models import Friendship, ECCKeyPair
 from .forms import PostForm, PostUpdateForm
 import operator
