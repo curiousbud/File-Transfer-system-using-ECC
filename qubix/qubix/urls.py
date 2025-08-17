@@ -79,6 +79,8 @@ urlpatterns = [
     path('groups/create/', user_views.create_group, name='create-group'),
     path('groups/<int:group_id>/', user_views.group_detail, name='group-detail'),
     
+    path('files/', include('files.urls')),
+    path('qshare/', include('qshare.urls')),
     path('', include('blog.urls')),
 ]
 
