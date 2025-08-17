@@ -1,4 +1,4 @@
-# 🔐 Qubix: Secure File Transfer System Using Elliptic Curve Cryptography (ECC)
+****# 🔐 Qubix: Secure File Transfer System Using Elliptic Curve Cryptography (ECC)
 
 ## 📋 Project Overview
 
@@ -341,3 +341,132 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 *Last Updated: July 26, 2025*
 *Project Status: Active Development - Week 1-2*
+
+---
+
+## 🧩 Modularization & Granular App Structure
+
+To make Qubix more portable, maintainable, and reusable, you should split major features into dedicated Django apps. Here’s a step-by-step migration plan with code snippets:
+
+### 1. Identify Features to Modularize
+
+- **File Management**: Secure file upload, download, sharing, access control
+- **Temporary Sharing**: Anonymous, expiring file links
+- **Groups & Friendships**: User groups, friend requests, management
+- **Encryption & Key Management**: ECC key generation, rotation, crypto utilities
+- **Search**: Unified search for posts, users, files
+- **Audit & Logging**: Track file access, user actions, security events
+
+### 2. Create New Django Apps
+
+For each feature, run:
+```bash
+python manage.py startapp files
+python manage.py startapp temp_share
+python manage.py startapp social
+python manage.py startapp keys
+python manage.py startapp search
+python manage.py startapp audit
+```
+
+### 3. Move Code to Respective Apps
+
+- **Models**: Move related models to the new app’s `models.py`
+- **Views**: Move feature views to the new app’s `views.py`
+- **Templates**: Move templates to `templates/<appname>/`
+- **Static Files**: Move static assets to `static/<appname>/`
+- **Forms**: Move forms to `forms.py` in each app
+
+**Example for File Management:**
+```python
+# files/models.py
+class SecureFile(models.Model):
+   original_name = models.CharField(max_length=255)
+   encrypted_file_path = models.CharField(max_length=500)
+   encryption_algorithm = models.CharField(max_length=20)
+   created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+   created_at = models.DateTimeField(auto_now_add=True)
+
+# files/views.py
+from .models import SecureFile
+def upload_file(request):
+   # ... file upload logic ...
+   pass
+
+# files/templates/files/secure_file_upload.html
+# files/static/files/...
+```
+
+**Example for Temporary Sharing:**
+```python
+# temp_share/models.py
+class TemporaryFileShare(models.Model):
+   file = models.ForeignKey(SecureFile, on_delete=models.CASCADE)
+   token = models.CharField(max_length=64, unique=True)
+   expires_at = models.DateTimeField()
+   max_downloads = models.IntegerField(default=1)
+
+# temp_share/views.py
+def create_temp_share(request):
+   # ... temp share logic ...
+   pass
+```
+
+### 4. Register Apps in Settings
+
+Add each new app to `INSTALLED_APPS` in `settings.py`:
+```python
+INSTALLED_APPS = [
+   ...
+   'files',
+   'temp_share',
+   'social',
+   'keys',
+   'search',
+   'audit',
+   ...
+]
+```
+
+### 5. Update Imports and References
+
+- Change all imports to use the new app names
+- Update template paths and static references
+- Refactor URLs to use app-specific `urls.py` and include them in the main `urls.py`:
+```python
+# qubix/urls.py
+from django.urls import include, path
+urlpatterns = [
+   path('files/', include('files.urls')),
+   path('share/', include('temp_share.urls')),
+   path('social/', include('social.urls')),
+   path('keys/', include('keys.urls')),
+   path('search/', include('search.urls')),
+   path('audit/', include('audit.urls')),
+   ...
+]
+```
+
+### 6. Migrate Database and Test
+
+- Run migrations for each app:
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+- Test each feature independently
+
+### 7. Document Each App
+
+- Add README files to each app folder describing its purpose, models, views, and usage
+- Document API endpoints and integration points
+
+---
+**Benefits:**
+- Easier maintenance and testing
+- Reusable apps for future projects
+- Clear separation of concerns
+- Potential for open-source sharing of individual features
+
+---
+**Tip:** Start with the feature that is most independent (e.g., temporary sharing or audit logging) and modularize incrementally. Always keep your main branch stable and test after each migration.
